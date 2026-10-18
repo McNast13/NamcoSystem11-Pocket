@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""Replace the S11/MiSTer GTE with Laxer3a's GTE via GuardianSoul's CE/read-port adaptation.
+
+Port of openfpga-PlayStation scripts/prepare_gte_adapter.py (adapter_sources + system_bridge)
+onto the S11 tree. Arithmetic/microcode unchanged; savestates/widescreen/turbo unsupported.
+Usage: gte_laxer.apply WORKDIR PSPOCKET_DIR LAXER_DIR
+"""
+import re, shutil, sys
+from pathlib import Path
+
+work, pocket, laxer = (Path(a) for a in sys.argv[1:4])
+CLOCKED = {'GTEEngine.sv': (2, 3), 'GTERegs.sv': (6, 0), 'GTEComputePath.sv': (5, 1),
+           'GTEFastDiv.v': (3, 0), 'GTEMicroCode.sv': (2, 0)}
+out = work / "rtl/laxer_gte"
+out.mkdir(parents=True, exist_ok=True)
+qip = ["", "set_global_assignment -name SEARCH_PATH rtl/laxer_gte"]
+
+for original in sorted((laxer / "rtl").iterdir()):
+    if original.suffix not in ('.v', '.sv', '.hv', '.inl'):
+        continue
+    text = original.read_text()
+    if original.name in CLOCKED:
+        clocks, connections = CLOCKED[original.name]
+        text, n = re.subn(r'(input\s+i_clk\s*,)', r'\1\n    input i_ce,', text); assert n == 1, original.name
+        text, n = re.subn(r'(always\s*@\s*\(\s*posedge\s+i_clk\s*\))', r'\1 if (i_ce)', text); assert n == clocks, (original.name, n)
+        text, n = re.subn(r'(\.i_clk\s*\(i_clk\)\s*,)', r'\1\n    .i_ce(i_ce),', text); assert n == connections, (original.name, n)
+        for name in CLOCKED:
+            m = Path(name).stem
+            text = re.sub(r'\b' + m + r'\b', 'Pocket' + m, text)
+        if original.name in ('GTEEngine.sv', 'GTERegs.sv'):
+            text, n = re.subn(r'(input\s+E_REG\s+i_regID\s*,)', r'\1\n    input E_REG i_readRegID,', text); assert n == 1
+            if original.name == 'GTEEngine.sv':
+                text, n = re.subn(r'(\.i_regID\s*\(i_regID\)\s*,)', r'\1\n    .i_readRegID(i_readRegID),', text)
+            else:
+                text, n = re.subn(r'(wire \[5:0\] pRegID = )i_regID;', r'\1i_readRegID;', text)
+            assert n == 1, original.name
+        text = '// Generated CE/read-address adaptation of Laxer3a PS-GTE; original license follows.\n' + text
+    (out / original.name).write_text(text)
+    if original.suffix in ('.v', '.sv'):
+        kind = 'SYSTEMVERILOG_FILE'
+        qip.append(f"set_global_assignment -name {kind} rtl/laxer_gte/{original.name}")
+shutil.copy(pocket / "rtl/gte/laxer_mister_adapter.sv", out / "laxer_mister_adapter.sv")
+qip.append("set_global_assignment -name SYSTEMVERILOG_FILE rtl/laxer_gte/laxer_mister_adapter.sv")
+
+# Bridge: keep S11's `gte` entity, swap its architecture.
+gte = work / "rtl/gte.vhd"
+head = gte.read_text().split('architecture arch of gte is')[0]
+bridge = (pocket / "scripts/prepare_gte_adapter.py").read_text()
+body = bridge.split("text+='''")[1].split("'''")[0]
+gte.write_text(head + body)
+
+with open(work / "rtl/psx.qip", "a") as f:
+    f.write("\n".join(qip) + "\n")
+print("gte_laxer applied")
