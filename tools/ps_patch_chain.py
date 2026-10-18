@@ -50,6 +50,45 @@ def dir_patch(out, mod, func, filename):
     (out / filename).write_text(text)
 
 
+def timing_prune(out):
+    """gpu_timing_prune: drop elapsed/target timing counters (REPRODUCIBLEGPUTIMING is tied off in S11).
+    Applies the polygon engine and the auxiliary engines; skips the read-wrap piece (needs an extra package)."""
+    import subprocess, tempfile
+    m = importlib.import_module("prepare_gpu_timing")
+    done, failed = [], []
+    with tempfile.TemporaryDirectory() as t:
+        up = Path(t) / "up"; (up / "rtl").mkdir(parents=True)
+        (up / "LICENSE").write_text("GPL-2.0 (see upstream)\n")
+        for f in out.glob("gpu_*.vhd"):
+            shutil.copy(f, up / "rtl" / f.name)
+        # the patch anchors its simulation-only assertion on 'begin ' (trailing space); S11's has none
+        for n in ["gpu_poly"] + list(m.AUXILIARY_TIMING):
+            f = out / f"{n}.vhd"; s = f.read_text()
+            if s.count("begin \n") == 0 and s.count("\nbegin\n") >= 1:
+                f.write_text(s.replace("\nbegin\n", "\nbegin \n", 1))
+        real_co, real_run = subprocess.check_output, subprocess.run
+        subprocess.check_output = lambda *a, **k: m.PIN + "\n"
+        subprocess.run = lambda *a, **k: subprocess.CompletedProcess(a, 0)
+        old = m.UPSTREAM; m.UPSTREAM = up
+        try:
+            jobs = [("gpu_poly", lambda d: m.pruned_timing_source(d, out / "gpu_poly.vhd"))]
+            jobs += [(n, (lambda n: lambda d: m.pruned_auxiliary_source(n, d, out / f"{n}.vhd"))(n))
+                     for n in m.AUXILIARY_TIMING]
+            for name, job in jobs:
+                d = Path(t) / name
+                try:
+                    job(d)
+                    shutil.copy(d / f"{name}.vhd", out / f"{name}.vhd"); done.append(name)
+                except Exception as e:
+                    failed.append(f"{name}: {type(e).__name__}: {str(e)[:70]}")
+        finally:
+            subprocess.check_output, subprocess.run, m.UPSTREAM = real_co, real_run, old
+    print(f"{'APPLIED' if done else 'SKIPPED':8}{'gpu_timing_prune':22} {','.join(done)}")
+    for f in failed:
+        print("   skipped", f)
+    return bool(done)
+
+
 def sanitize(out):
     """Strip S11-only debug taps that read internal state the area patches restructure."""
     import re
@@ -98,6 +137,9 @@ def main():
         print(f"{'APPLIED' if hits else 'SKIPPED':8}{mod[8:]:22} {','.join(hits) or err}")
         if hits:
             applied.append(mod[8:])
+    if not only or "gpu_timing_prune" in only:
+        if timing_prune(out):
+            applied.append("gpu_timing_prune")
     print("applied:", ",".join(applied))
 
 
