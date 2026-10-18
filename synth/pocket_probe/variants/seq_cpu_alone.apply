@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+"""Copy the PS port's sequential CPU into the work tree (probe target is switched by seq_cpu_alone.sh)."""
+import shutil, sys
+from pathlib import Path
+work = Path(sys.argv[1]).resolve(); ps = Path(sys.argv[2]).resolve()
+shutil.copy(ps / "rtl/cpu/psx_cpu.sv", work / "psx_cpu_seq.sv")
+print("copied psx_cpu.sv")
