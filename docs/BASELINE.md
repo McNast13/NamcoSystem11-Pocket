@@ -198,3 +198,16 @@ video/audio out) must then be added, so the realistic cut from the *core* is sti
 `psx_cpu.sv` (openfpga-PlayStation, "sequential R3000 baseline", not shipped in its core) synthesized alone for the Pocket part:
 **6,601 ALUTs, 2,325 regs, 0 DSP** vs the cached S11 `cpu.vhd` at ~4.0k ALUTs. It is larger (multiply/divide in LUTs) and slower, and needs an adapter
 to the cached memory protocol. Dropped as an option.
+
+## Scaffolding drop measured (variant drop_scaffold: stub savestates + pll_cfg; fit on 5CEBA9F23C8, run 39157057553)
+
+| | ALMs | Regs | M10K |
+|---|---|---|---|
+| before (same stack) | 25,282 | 26,400 | 232 |
+| after | **22,553** | 22,816 | 230 |
+| change | **-2,729** | -3,584 | -2 |
+
+More than the ~1.2k the two modules' own sizes suggest: with the savestate engine gone, the per-module save/load read paths
+(SS_DataRead_*, statemanager) are pruned too. Remaining gap to the Pocket's 18,480 ALMs: **~4,070 plus the Pocket shell**
+(APF bridge, data-slot loader, memory controller, video/audio out), which are not yet counted.
+Not yet dropped: hps_io/hps_ext, video_freak/scale/gamma, sdram2, debug glue in SYSTEM11.sv (likely another ~1-1.5k, but partly replaced by shell logic).
