@@ -10,9 +10,13 @@ done
 if [ "$FIT" = 1 ]; then
   # emu has far more pins than the device; the fit is for logic/memory/DSP only.
   # Must precede quartus_map so the assignments reach the netlist.
-  echo 'set_instance_assignment -name VIRTUAL_PIN ON -to *' >> probe.qsf
-  # DDIO outputs must drive a real pin
-  echo 'set_instance_assignment -name VIRTUAL_PIN OFF -to SDRAM_CLK' >> probe.qsf
+  # (explicit per-port list: DDIO clock outputs SDRAM_CLK/SDRAM2_CLK must stay real pins, and
+  # a wildcard VIRTUAL_PIN ON is not overridden by a later OFF)
+  awk '/^module emu/{f=1} f&&/\);/{f=0} f' SYSTEM11.sv | sed 's@//.*@@' | grep -E '\b(input|output|inout)\b' \
+    | sed -E 's/[,;[:space:]]*$//' | awk '{print $NF}' | grep -v -E '^(SDRAM_CLK|SDRAM2_CLK)$' | while read n; do
+      echo "set_instance_assignment -name VIRTUAL_PIN ON -to $n" >> probe.qsf
+      echo "set_instance_assignment -name VIRTUAL_PIN ON -to \"$n[*]\"" >> probe.qsf
+    done
   if [ -n "$FIT_DEVICE" ]; then
     sed -i "s/^set_global_assignment -name DEVICE .*/set_global_assignment -name DEVICE $FIT_DEVICE/" probe.qsf
   fi
