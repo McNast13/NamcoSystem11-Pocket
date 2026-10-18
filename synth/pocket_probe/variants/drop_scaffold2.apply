@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+"""Second batch of MiSTer-only blocks the Pocket's firmware covers: the HDMI aspect/integer-scale
+helper, gamma correction, the savestate OSD UI and the HPS extension bus. Each module is replaced in
+place by a same-name stub (passthrough or tied off), so project files keep working."""
+import re, sys
+from pathlib import Path
+
+work = Path(sys.argv[1]).resolve()
+STUBS = {
+    "sys/video_freak.sv": ("video_freak",
+        "assign VGA_DE = VGA_DE_IN;\n  assign VIDEO_ARX = 13'd4;\n  assign VIDEO_ARY = 13'd3;"),
+    "sys/gamma_corr.sv": ("gamma_corr",
+        "assign HSync_out = HSync; assign VSync_out = VSync;\n  assign HBlank_out = HBlank; assign VBlank_out = VBlank;\n"
+        "  assign RGB_out = RGB_in;"),
+    "rtl/savestate_ui.sv": ("savestate_ui",
+        "assign ss_save = 1'b0; assign ss_load = 1'b0; assign ss_info_req = 1'b0;\n  assign ss_info = 8'd0;\n"
+        "  assign statusUpdate = 1'b0; assign selected_slot = 2'd0;"),
+    "rtl/hps_ext.v": ("hps_ext", "assign heartbeat = 1'b0;"),
+}
+for rel, (name, body) in STUBS.items():
+    p = work / rel
+    text = p.read_text()
+    m = re.search(rf"\bmodule\s+{name}\b.*?\bendmodule\b", text, re.S)
+    if not m:
+        sys.exit(f"module {name} not found in {rel}")
+    mod = m.group(0)
+    head = mod[: mod.index(");") + 2]
+    head = re.sub(r"\boutput\s+reg\b", "output", head)
+    new = f"{head}\n  {body}\nendmodule"
+    p.write_text(text[: m.start()] + new + text[m.end():])
+    print("stubbed", name)
