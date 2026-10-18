@@ -10,3 +10,6 @@
 [submodule "references/Laxer-PS-GTE"]
 	path = references/Laxer-PS-GTE
 	url = https://github.com/Laxer3a/PS-GTE.git
+[submodule "references/MIRLO64"]
+	path = references/MIRLO64
+	url = https://github.com/tortugaveloz/MIRLO64.git

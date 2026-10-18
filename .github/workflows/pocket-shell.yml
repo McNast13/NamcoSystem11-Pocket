@@ -1,0 +1,34 @@
+name: Pocket shell build
+# Full Quartus compile (map, fit, timing) of pocket/project on the Pocket's real device with real pins.
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "project revision under pocket/project"
+        default: "s11"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache
+      - name: Compile
+        shell: bash
+        run: |
+          docker run --rm -v "$PWD/pocket:/pocket" -w /pocket/project raetro/quartus:pocket \
+            sh -c "quartus_sh --flow compile ${{ inputs.project }}" | tee build.log || true
+      - name: Summary
+        if: always()
+        run: |
+          { echo '```'; cat pocket/project/output_files/*.fit.summary 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shell-${{ inputs.project }}
+          path: |
+            pocket/project/output_files/*.rpt
+            pocket/project/output_files/*.summary
+            pocket/project/output_files/*.smsg
+            build.log
