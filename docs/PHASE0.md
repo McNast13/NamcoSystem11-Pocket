@@ -25,3 +25,9 @@ The Pocket's SDRAM is ~32 MB, so ROMs fit but nearly fill it; main RAM / VRAM mu
 ## Toolchain finding
 Quartus Prime Lite has **no macOS build**. This machine (Apple Silicon) has iverilog and verilator but not ghdl or Quartus.
 Options: x86 Linux VM/cloud box or GitHub Actions runner with Quartus Lite 25.1 for synthesis; simulate locally (verilator/ghdl via brew).
+
+## ROM status (2026-10-18)
+`roms/tekken2.zip` (supplied by the owner, not committed) is the **US set, TES3/VER.D** (MRA `_alternatives/_Tekken 2/Tekken 2 Ver.B (US TES3-VER.D).mra`, setname `tekken2ud`).
+Verified by CRC: all banked data ROMs, sprog and wave match; program ROMs are `tes3verd.2l` (0768f36c) / `.2j` (d29a0545) / `.2k` (846ace0a) / `.2f` (7a0663b4),
+not the `tes2verd.*` names listed above. **Use the TES3/VER.D MRA as the first target** (same hardware, KEYCUS C406).
+Total ROM payload 25.4 MB. **Still missing: `namcoc76.zip` (c76.bin).**
