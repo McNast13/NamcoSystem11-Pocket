@@ -1,0 +1,9 @@
+[submodule "references/SYSTEM11_MiSTer"]
+	path = references/SYSTEM11_MiSTer
+	url = https://github.com/XelaNotPu/SYSTEM11_MiSTer
+[submodule "references/openfpga-PlayStation"]
+	path = references/openfpga-PlayStation
+	url = https://github.com/GuardianSoul/openfpga-PlayStation
+[submodule "references/PSX_MiSTer"]
+	path = references/PSX_MiSTer
+	url = https://github.com/MiSTer-devel/PSX_MiSTer

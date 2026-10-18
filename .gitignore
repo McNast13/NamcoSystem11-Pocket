@@ -1,0 +1,5 @@
+roms/
+build/
+*.zip
+*.rbf
+*.rbf_r
