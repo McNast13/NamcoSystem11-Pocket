@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""Apply GuardianSoul's GPU divider pool to the S11 gpu.vhd (port of prepare_gpu_divider_pool.py).
+
+Six per-lane signed dividers (45/25-bit) become one shared divider, scheduled serially.
+Experimental upstream: adds setup latency; pixel equivalence unverified.
+Usage: gpu_divider_pool.apply WORKDIR POOLDIR   (POOLDIR = openfpga-PlayStation checkout)
+"""
+import shutil, sys
+from pathlib import Path
+
+work, pool = Path(sys.argv[1]), Path(sys.argv[2])
+gpu = work / "rtl/gpu.vhd"
+text = gpu.read_text()
+
+decl = "   signal div_array                 : t_div_array;"
+assert text.count(decl) == 1, "div_array declaration not found"
+text = text.replace(decl, decl + """
+   signal pool_starts, pool_dones : std_logic_vector(5 downto 0);
+   signal pool_dividends, pool_quotients : signed(269 downto 0);
+   signal pool_divisors, pool_remainders : signed(149 downto 0);""")
+
+g = text.index("   gdividers:")
+b = text.index("      idivider : entity work.divider\n", g)
+e = text.index("   end generate;", b)
+text = text[:b] + """      pool_starts(i) <= div_array(i).start;
+      pool_dividends(i*45+44 downto i*45) <= div_array(i).dividend;
+      pool_divisors(i*25+24 downto i*25) <= div_array(i).divisor;
+      div_array(i).done <= pool_dones(i);
+      div_array(i).quotient <= pool_quotients(i*45+44 downto i*45);
+      div_array(i).remainder <= pool_remainders(i*25+24 downto i*25);
+""" + text[e:]
+
+g = text.index("   gdividers:")
+text = text[:g] + """   divider_pool : entity work.psx_gpu_divider_pool
+   port map(clk=>clk2x, reset=>softreset or SS_reset, starts=>pool_starts,
+            dividends=>pool_dividends, divisors=>pool_divisors,
+            dones=>pool_dones, quotients=>pool_quotients, remainders=>pool_remainders);
+
+""" + text[g:]
+gpu.write_text(text)
+
+shutil.copy(pool / "rtl/gpu/psx_gpu_divider_pool.vhd", work / "rtl/psx_gpu_divider_pool.vhd")
+with open(work / "rtl/psx.qip", "a") as f:
+    f.write("\nset_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) psx_gpu_divider_pool.vhd ]\n")
+print("gpu_divider_pool applied")
