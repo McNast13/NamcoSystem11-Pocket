@@ -40,3 +40,26 @@ Assumed Pocket FPGA (Cyclone V 5CEBA4): ~18.5k ALMs, ~308 M10K (3.1 Mb), ~66 DSP
 - Biggest unknowns: whether C76 (M37702 soft CPU, 4.3k ALM) can be slimmed, and whether the GPU can be time-multiplexed at an acceptable rate.
 
 Next: re-synthesize `emu` for the Pocket device (raetro/quartus:pocket) with the framework stripped, MDEC/savestates removed, to get a true Pocket-device number.
+
+## Pocket-device synthesis probe (run #39137853331)
+`emu` alone, unmodified, synthesized for 5CEBA4F23C8 with Quartus 18.1.1 (`raetro/quartus:pocket`); synthesis only, no fit
+(ALM count is not reported at this stage; compare in combinational ALUTs). Workflow: `.github/workflows/pocket-probe.yml`.
+
+| | emu (unmodified) | Pocket FPGA (approx.) |
+|---|---|---|
+| Combinational ALUTs | 43,352 | ~25.9k (18.5k ALMs x ~1.4; the MiSTer fit packed 30.8k ALMs for emu, ratio ~0.71 ALM/ALUT) |
+| Registers | 31,385 | ~74k |
+| Block memory bits | 1.32 Mb | 3.08 Mb |
+| DSP blocks | 86 | ~66 |
+
+| Module | ALUTs | Regs | Mem bits | DSP |
+|---|---|---|---|---|
+| psx_top | 29,938 | 19,224 | 919k | 74 |
+| c76_sound (C76 CPU 5.8k, C352 3.7k) | 9,676 | 8,503 | 399k | 4 |
+| hps_io | 921 | 1,155 | 0 | 0 |
+| pll_cfg | 788 | 204 | 0 | 0 |
+| sdram | 411 | 893 | 0 | 0 |
+
+**Conclusion:** unmodified, `emu` is ~65-70% over the Pocket's logic and ~30% over its DSP budget. Reaching playable Tekken 2 means removing
+roughly 17k ALUTs (~40%): MDEC/savestates/hps_io/pll_cfg (~3k), then slimming GPU (multiplier sharing), GTE, CPU caches and the C76 core.
+Next probe variants (`synth/pocket_probe/variants/<name>.sh`, applied before synthesis): no-MDEC, no-savestates, GPU with shared multipliers.
