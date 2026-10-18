@@ -73,3 +73,21 @@ Next probe variants (`synth/pocket_probe/variants/<name>.sh`, applied before syn
 **MDEC correction:** the author's comments in `psx_top.vhd` say MDEC was deliberately restored because Tekken/System 11 intro FMVs are
 MDEC streams, and that SPU and cheats were already stubbed to pay for it. Removing it saves only ~1.2k ALUTs and 9 DSP, and kills
 the intro movies (risk: boot code that waits on MDEC DMA could hang - untested). Treat as an optional late cut, not a first one.
+
+### GPU divider pool (variant `gpu_divider_pool`, run 39139784990)
+Port of openfpga-PlayStation `prepare_gpu_divider_pool.py` onto S11 `rtl/gpu.vhd` (six dividers -> one shared, serial). Upstream flags it experimental
+(adds setup latency; its own metadata says pixel equivalence/fit/game/hardware unverified).
+
+| Variant | ALUTs | Regs | DSP |
+|---|---|---|---|
+| baseline | 43,352 | 31,385 | 86 |
+| gpu_divider_pool | 42,627 (-725, -1.7%) | 31,180 | 86 (no change) |
+
+Findings: divider pool saves little (~1.1k ALUTs of dividers -> 386 pool). The GPU is still 10.9k ALUTs; its 44 DSPs are in `gpu_poly` (29) and
+`gpu_pixelpipeline` (15), not the dividers. GTE 6.3k ALUTs / 15 DSP, CPU 4.1k ALUTs / 6 DSP, DMA 2.5k.
+
+### What the PlayStation Pocket port actually does (from source, not yet measured here)
+- CPU: replaced with `psx_cpu.sv`, a **sequential, non-cycle-accurate R3000** with no caches (vs ~4.1k ALUT + 78 M10K cached CPU here).
+- GTE: `rtl/gte/laxer_mister_adapter.sv` wraps Laxer3a's GTE (`references/Laxer3a_PSX`) rather than the MiSTer pipelined GTE.
+- GPU: divider pool (above), `psx_gpu_read_math`; VRAM in PSRAM (`psx_vram_psram`).
+These are the real levers. Cycle accuracy matters less for System 11 only if Tekken 2's timing tolerates it - needs testing.
