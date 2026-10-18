@@ -175,3 +175,26 @@ Variant: gte_laxer + ps_patches + c76_ram_bram + cpu_execute_share. The fitter f
 ALM breakdown: 8,507 LUT+register, 12,364 LUT-only, 3,365 register-only, 700 memory; dense packing recovers ~0.
 The ALUT-to-ALM estimate (0.71) was right: 25,557 / 36,637 = 0.70. Real figure for planning: **~7.1k ALMs to remove**
 (plus headroom for timing closure and the Pocket shell/memory controller, which are not in this number).
+
+## Placed breakdown (fit on 5CEBA9F23C8, run 39153542286 - same design, bigger part so it completes)
+
+Total 25,282 ALMs, 26,400 regs, 232 M10K blocks (of 308), 60 DSP. ALMs by block (hierarchy totals):
+
+| Block | ALMs | Notes |
+|---|---|---|
+| psx_top (all PS1 core) | 16,973 | |
+| - gpu | 6,991 | poly 1,759, pixelpipeline 1,754, videoout ~1,230, line 445, rect 258 |
+| - cpu | 3,378 | 2,942 local (includes the 32x32 flip-flop `regsFF`) |
+| - gte (Laxer) | 2,108 | |
+| - dma 1,098; memorymux 882; mdec 672; timer 271; memctrl 244 | | |
+| c76_sound | 5,360 | m37702 1,751; c76 wrapper 751; c352 2,789 |
+| zn1_io | 574 | System 11 I/O |
+| **MiSTer scaffolding the Pocket shell replaces** | **~3,500** | emu glue 960, pll_cfg 698, hps_io 640, savestates 543, sdram 372, video_calc/freak/scale ~650 |
+
+Excluding the scaffolding, the core is ~21.8k ALMs; the Pocket wrapper (APF bridge, data-slot loader, memory controller,
+video/audio out) must then be added, so the realistic cut from the *core* is still ~5-6k ALMs.
+
+### Sequential PS CPU is NOT a saving
+`psx_cpu.sv` (openfpga-PlayStation, "sequential R3000 baseline", not shipped in its core) synthesized alone for the Pocket part:
+**6,601 ALUTs, 2,325 regs, 0 DSP** vs the cached S11 `cpu.vhd` at ~4.0k ALUTs. It is larger (multiply/divide in LUTs) and slower, and needs an adapter
+to the cached memory protocol. Dropped as an option.
