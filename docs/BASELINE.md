@@ -104,3 +104,21 @@ gpu-half-pipe, gte-*-ram, gte-adapter (Laxer), dma-*-ram, mdec-*, ...). S11's gt
 | **gte_laxer** (Laxer3a GTE) | **39,697 (-3,655, -8.4%)** | 30,144 | 1,351,175 | 83 |
 
 GTE swap is the best single cut so far. Not functionally verified (S11 savestates, widescreen and turbo are unsupported by this GTE).
+
+### Patch-stack results (synthesis only; none functionally verified)
+`ps_patches` = the 8 openfpga-PlayStation patches that apply to S11 RTL unchanged (dma_channel_ram, dma_chcr_ram, gpu_area_reg, gpu_mul_narrow,
+gpu_poly_onehot, gpu_no_watchdog, mdec_mednafen, mdec_idct_pipe); `area_profile` = Quartus area settings (no RTL change). Tools: `tools/ps_patch_survey.py`, `tools/ps_patch_chain.py`.
+
+| Variant | ALUTs | Regs | DSP | vs baseline |
+|---|---|---|---|---|
+| baseline | 43,352 | 31,385 | 86 | |
+| area_profile | 43,180 | 31,110 | 88 | -172 |
+| ps_patches | 42,415 | 30,779 | 85 | -937 |
+| gte_laxer | 39,697 | 30,144 | 83 | -3,655 |
+| gte_laxer + area_profile | 39,626 | 29,948 | 85 | -3,726 |
+| **gte_laxer + ps_patches** | **38,850** | 29,536 | 82 | **-4,502 (-10.4%)** |
+| **gte_laxer + ps_patches + area_profile** | **38,183** | 29,316 | 83 | **-5,169 (-11.9%)** |
+
+(An earlier combined run showed a worse number due to a tooling bug that reverted the Laxer GTE; fixed in `ps_patches.apply`.)
+Remaining gap to the ~26k ALUT estimate: ~12k. Patches that did not apply (need manual port to S11's diverged gpu_poly/gpu/cpu):
+gpu_poly_share, gpu_vertex_ram, gpu_half_pipe, gpu_dy_ram, gpu_sort_reread, gpu_tag_generation, gpu_read_late, gpu_cache_controls, cpu_execute_share, cpu_regfile_ram, gte RAM conversions (target MiSTer GTE).
