@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+"""Apply only the PS port's cpu_execute_share patch (SHA pin rebound to S11's cpu.vhd) to rtl/cpu.vhd."""
+import subprocess, sys, tempfile, shutil
+from pathlib import Path
+
+work = Path(sys.argv[1]).resolve()
+with tempfile.TemporaryDirectory() as t:
+    out = Path(t) / "chain"
+    subprocess.run([sys.executable, "-I", "tools/ps_patch_chain.py", str(out), "cpu_execute_share"], check=True)
+    shutil.copy(out / "cpu.vhd", work / "rtl" / "cpu.vhd")
+    print("patched cpu.vhd")

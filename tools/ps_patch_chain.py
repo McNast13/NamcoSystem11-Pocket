@@ -19,6 +19,9 @@ ORDER = [  # only patches the shipped PS core applies (prepare_full_pocket.py), 
     ("prepare_gpu_no_watchdog", "no_watchdog_text"), ("prepare_gpu_tag_generation", "tag_generation_text"),
     ("prepare_mdec_mednafen", "mednafen_text"), ("prepare_mdec_idct_pipe", "idct_pipe_text"),
 ]
+# CPU patches are SHA-pinned to upstream cpu.vhd; S11's is hand-modified, so the pin is rebound to
+# the S11 text and only the patch's own anchor checks guard it. Opt-in: name them on the command line.
+CPU_ORDER = [("prepare_cpu_execute_share", "execute_share_text")]
 
 
 def dir_patch(out, mod, func, filename):
@@ -66,7 +69,14 @@ def main():
         print("APPLIED line_share            gpu_poly.vhd (directory-style, pin check bypassed)")
     except Exception as e:
         print("SKIPPED line_share            ", type(e).__name__, str(e)[:120])
-    for mod, fn in ORDER:
+    import hashlib
+    for mod, fn in ORDER + (CPU_ORDER if only else []):
+        if mod.startswith("prepare_cpu"):
+            m = importlib.import_module(mod)
+            h = hashlib.sha256((out / "cpu.vhd").read_bytes()).hexdigest()
+            for a in dir(m):
+                if a.endswith("SHA256"):
+                    setattr(m, a, h)
         if only and mod.replace("prepare_", "") not in only:
             continue
         f = getattr(importlib.import_module(mod), fn)
