@@ -9,8 +9,10 @@ work = Path(sys.argv[1]).resolve()
 with tempfile.TemporaryDirectory() as t:
     out = Path(t) / "chain"
     subprocess.run([sys.executable, "-I", "tools/ps_patch_chain.py", str(out)], check=True)
+    pristine = Path("references/SYSTEM11_MiSTer/rtl")
     for f in out.iterdir():
         dst = work / "rtl" / f.name
-        if f.is_file() and dst.exists() and dst.read_bytes() != f.read_bytes():
+        # only files the patches changed relative to pristine S11 (don't revert other variants' edits)
+        if f.is_file() and dst.exists() and (pristine / f.name).read_bytes() != f.read_bytes():
             shutil.copy(f, dst)
             print("patched", f.name)
