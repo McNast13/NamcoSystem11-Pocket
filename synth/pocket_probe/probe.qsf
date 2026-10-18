@@ -1,0 +1,20 @@
+# Synthesis-only probe: compile the S11 `emu` module alone for the Analogue Pocket's FPGA
+# to estimate resource use. No pin/timing constraints; framework (sys_top) excluded.
+set_global_assignment -name FAMILY "Cyclone V"
+set_global_assignment -name DEVICE 5CEBA4F23C8N
+set_global_assignment -name TOP_LEVEL_ENTITY emu
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
+set_global_assignment -name OPTIMIZATION_MODE BALANCED
+set_global_assignment -name VERILOG_MACRO "MISTER_FB=1"
+set_global_assignment -name VERILOG_MACRO "MISTER_DOWNSCALE_NN=1"
+set_global_assignment -name VERILOG_MACRO "MISTER_DISABLE_ADAPTIVE=1"
+set_global_assignment -name VERILOG_MACRO "MISTER_DISABLE_YC=1"
+set_global_assignment -name VERILOG_MACRO "MISTER_DISABLE_ALSA=1"
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+set_global_assignment -name QIP_FILE files.qip
+# emu instantiates these framework helpers:
+foreach f {hps_io.sv video_mixer.sv video_freak.sv video_cleaner.sv video_freezer.sv gamma_corr.sv
+           scandoubler.v scanlines.v shadowmask.sv arcade_video.v osd.v math.sv} {
+    set_global_assignment -name SYSTEMVERILOG_FILE [file join sys $f]
+}

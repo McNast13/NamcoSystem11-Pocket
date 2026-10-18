@@ -1,0 +1,33 @@
+name: Pocket resource probe
+# Synthesizes the S11 `emu` module alone for the Pocket's Cyclone V 5CEBA4 and reports resource use.
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "variant script in synth/pocket_probe/variants (empty = unmodified)"
+        default: ""
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - run: git submodule update --init --depth 1 references/SYSTEM11_MiSTer
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache
+      - name: Synthesize
+        run: |
+          mkdir -p work && cp -r references/SYSTEM11_MiSTer/. work/
+          docker run --rm -v "$PWD/work:/build" -v "$PWD/synth/pocket_probe:/probe:ro" -w /build \
+            raetro/quartus:pocket /probe/run.sh "${{ inputs.variant }}" | tee map.log
+      - name: Summary
+        if: always()
+        run: |
+          { echo '```'; cat work/output_files/probe.map.summary 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-${{ inputs.variant || 'baseline' }}
+          path: |
+            work/output_files/probe.map.*
+            map.log
