@@ -158,3 +158,20 @@ MiSTer fit ratio (~0.71 ALM/ALUT) that is ~26k ALMs vs 18,480 available, i.e. **
 
 What can be leveraged: ~1.8 Mbit of M10K is unused and 6 DSPs are free. Logic that can be re-expressed as RAM/ROM
 (register arrays, lookup tables, MLAB-based RAM which burns ALMs) should move to M10K; multipliers can use the spare DSPs.
+
+## Real fit on the Pocket device (run 39153536343, Quartus 18.1.1, 5CEBA4F23C8, all `emu` ports virtual except the SDRAM clocks)
+
+Variant: gte_laxer + ps_patches + c76_ram_bram + cpu_execute_share. The fitter fails at packing, but reports the demand:
+
+| Resource | Needed | Device | |
+|---|---|---|---|
+| ALMs | **25,557** | 18,480 | 138% (**7,077 over; -27.7% required**) |
+| LABs | 2,567 | 1,848 | |
+| Registers | 24,446 | | |
+| Block memory bits | 1,356,039 | 3,153,920 | 43% |
+| DSP blocks | 60 | 66 | 91% |
+| PLLs | 2 | 4 | |
+
+ALM breakdown: 8,507 LUT+register, 12,364 LUT-only, 3,365 register-only, 700 memory; dense packing recovers ~0.
+The ALUT-to-ALM estimate (0.71) was right: 25,557 / 36,637 = 0.70. Real figure for planning: **~7.1k ALMs to remove**
+(plus headroom for timing closure and the Pocket shell/memory controller, which are not in this number).
