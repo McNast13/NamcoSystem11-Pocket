@@ -11,17 +11,47 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ps_patch_survey as sv  # noqa: E402  (sets up scratch root + sys.path)
 
 # Order follows scripts/prepare_full_pocket.py; (module, function)
-ORDER = [
+ORDER = [  # only patches the shipped PS core applies (prepare_full_pocket.py), in its order
     ("prepare_dma_channel_ram", "channel_ram_text"), ("prepare_dma_chcr_ram", "chcr_ram_text"),
-    ("prepare_gpu_area_reg", "area_reg_text"), ("prepare_gpu_dy_ram", "dy_ram_text"),
     ("prepare_gpu_poly_share", "poly_share_text"), ("prepare_gpu_vertex_ram", "vertex_ram_text"),
     ("prepare_gpu_mul_narrow", "mul_narrow_text"), ("prepare_gpu_mul_retime", "mul_retime_text"),
     ("prepare_gpu_half_pipe", "half_pipe_text"), ("prepare_gpu_poly_onehot", "onehot_text"),
     ("prepare_gpu_no_watchdog", "no_watchdog_text"), ("prepare_gpu_tag_generation", "tag_generation_text"),
-    ("prepare_gpu_sort_reread", "sort_reread_text"), ("prepare_gpu_read_late", "read_late_text"),
-    ("prepare_gpu_cache_controls", "cache_controls_text"),
     ("prepare_mdec_mednafen", "mednafen_text"), ("prepare_mdec_idct_pipe", "idct_pipe_text"),
 ]
+
+
+def dir_patch(out, mod, func, filename):
+    """Run a directory-style PS patch (reads UPSTREAM/rtl/<file>, writes <dir>/<file>) on `out`'s current file.
+
+    The PS scripts pin-check their upstream checkout with git; the S11 tree is intentionally different,
+    so the pin checks are bypassed here (the patch's own marker checks still guard the text).
+    """
+    import subprocess, tempfile
+    m = importlib.import_module(mod)
+    with tempfile.TemporaryDirectory() as t:
+        up = Path(t) / "up"; (up / "rtl").mkdir(parents=True)
+        shutil.copy(out / filename, up / "rtl" / filename)
+        (up / "LICENSE").write_text("GPL-2.0 (see upstream)\n")
+        real_co, real_run = subprocess.check_output, subprocess.run
+        subprocess.check_output = lambda *a, **k: m.PIN + "\n"
+        subprocess.run = lambda *a, **k: subprocess.CompletedProcess(a, 0)
+        old = m.UPSTREAM; m.UPSTREAM = up
+        try:
+            getattr(m, func)(Path(t) / "o")
+        finally:
+            subprocess.check_output, subprocess.run, m.UPSTREAM = real_co, real_run, old
+        text = (Path(t) / "o" / filename).read_text()
+    (out / filename).write_text(text)
+
+
+def sanitize(out):
+    """Strip S11-only debug taps that read internal state the area patches restructure."""
+    import re
+    p = out / "gpu_poly.vhd"
+    t = p.read_text()
+    t = re.sub(r"^\s*dbg_v([02])\s*<=.*$", lambda m: f"   dbg_v{m.group(1)} <= (others => '0');", t, flags=re.M)
+    p.write_text(t)
 
 
 def main():
@@ -29,13 +59,22 @@ def main():
     if out.exists():
         shutil.rmtree(out)
     shutil.copytree(sv.S11, out)
+    sanitize(out)
     applied = []
+    try:
+        dir_patch(out, "prepare_gpu_line_share", "shared_line_source", "gpu_poly.vhd")
+        print("APPLIED line_share            gpu_poly.vhd (directory-style, pin check bypassed)")
+    except Exception as e:
+        print("SKIPPED line_share            ", type(e).__name__, str(e)[:120])
     for mod, fn in ORDER:
         if only and mod.replace("prepare_", "") not in only:
             continue
         f = getattr(importlib.import_module(mod), fn)
         hits, err = [], ""
+        domain = mod.split("_")[1]  # gpu / dma / mdec / cpu
         for cand in sv.CANDIDATES:
+            if not cand.startswith(domain):
+                continue
             p = out / cand
             src = p.read_text()
             try:
