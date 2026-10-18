@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""Probe: remove DMA channels 3 (CD) and 4 (SPU) from dma.vhd. System 11 has neither device."""
+import re, sys
+from pathlib import Path
+
+p = Path(sys.argv[1]).resolve() / "rtl/dma.vhd"
+t = p.read_text()
+t, n1 = re.subn(r"(DMA_CD_readEna\s*<=\s*)'1' when .*?else '0';", r"\1'0';", t, count=1, flags=re.S)
+t, n2 = re.subn(r"(DMA_SPU_readEna\s*<=\s*)'1' when .*?else '0';", r"\1'0';", t, count=1, flags=re.S)
+a = t.index("                        when 3 =>")
+b = t.index("                        when 6 =>", a)
+t = t[:a] + "                        when 3 | 4 => null;\n                           \n" + t[b:]
+p.write_text(t)
+print("dma: CD/SPU read enables tied off:", n1, n2, "; channel 3/4 data movement removed")
