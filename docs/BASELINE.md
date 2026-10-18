@@ -91,3 +91,16 @@ Findings: divider pool saves little (~1.1k ALUTs of dividers -> 386 pool). The G
 - GTE: `rtl/gte/laxer_mister_adapter.sv` wraps Laxer3a's GTE (`references/Laxer3a_PSX`) rather than the MiSTer pipelined GTE.
 - GPU: divider pool (above), `psx_gpu_read_math`; VRAM in PSRAM (`psx_vram_psram`).
 These are the real levers. Cycle accuracy matters less for System 11 only if Tekken 2's timing tolerates it - needs testing.
+
+### Correction + GTE swap (variant `gte_laxer`, run 39141582148)
+**Correction:** earlier I wrote that the PS Pocket port uses a sequential CPU (`psx_cpu.sv`). That is an experimental component, not the shipped core.
+The shipped core is upstream PSX_MiSTer plus ~30 area patches (`scripts/prepare_full_pocket.py` lists them: gpu-line-share, gpu-poly-share, gpu-mul-narrow,
+gpu-half-pipe, gte-*-ram, gte-adapter (Laxer), dma-*-ram, mdec-*, ...). S11's gte/mdec/dma/gpu_poly/gpu_line are ~identical to upstream; gpu.vhd and cpu.vhd have diverged.
+
+| Variant | ALUTs | Regs | Mem bits | DSP |
+|---|---|---|---|---|
+| baseline | 43,352 | 31,385 | 1,324,039 | 86 |
+| gpu_divider_pool | 42,627 (-725) | 31,180 | 1,324,039 | 86 |
+| **gte_laxer** (Laxer3a GTE) | **39,697 (-3,655, -8.4%)** | 30,144 | 1,351,175 | 83 |
+
+GTE swap is the best single cut so far. Not functionally verified (S11 savestates, widescreen and turbo are unsupported by this GTE).
