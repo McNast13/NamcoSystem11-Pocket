@@ -122,3 +122,17 @@ gpu_poly_onehot, gpu_no_watchdog, mdec_mednafen, mdec_idct_pipe); `area_profile`
 (An earlier combined run showed a worse number due to a tooling bug that reverted the Laxer GTE; fixed in `ps_patches.apply`.)
 Remaining gap to the ~26k ALUT estimate: ~12k. Patches that did not apply (need manual port to S11's diverged gpu_poly/gpu/cpu):
 gpu_poly_share, gpu_vertex_ram, gpu_half_pipe, gpu_dy_ram, gpu_sort_reread, gpu_tag_generation, gpu_read_late, gpu_cache_controls, cpu_execute_share, cpu_regfile_ram, gte RAM conversions (target MiSTer GTE).
+
+## Sound blocks and CPU patches (synthesis only, ALUTs = "logic" figure; add 875 memory ALUTs)
+
+| Variant | ALUTs | Regs | DSP | Notes |
+|---|---|---|---|---|
+| gte_laxer + ps_patches (11) | 37,948 | 29,358 | 60 | DSP now under the ~66 budget |
+| + c76_ram_bram | 35,762 | 25,254 | 60 | c76's 512 B internal RAM was flip-flops: two combinational dbg taps (`dbg_ram80/83`) blocked M10K inference. Tied off. |
+| + sound_no_debug | 35,762 | 25,254 | 60 | no change: Quartus already pruned the c76_sound diagnostics |
+| + cpu_execute_share | 35,639 | 25,254 | 60 | only -123 ALUTs; patch applies to S11 cpu.vhd with its SHA pin rebound |
+
+Where the area is now (hierarchy, ALUTs): gpu 10.5k, c76_sound 7.7k (m37702 2.8k, c352 3.8k, c76 wrapper ~1k incl. 128 B SFR file), cpu 4.0k,
+gte 2.5k, dma 1.6k, memorymux 1.3k, mdec 1.2k; non-core (SYSTEM11 top, sys/, glue) the remainder.
+`cpu_regfile_ram` was not tried: S11's cpu.vhd uses a hand-added flip-flop shadow register file (`regsFF`, HW workaround for an MLAB
+read-back bug) that the patch does not model. Remaining gap to ~26k ALUTs: ~10k. The GPU is the largest remaining block.
