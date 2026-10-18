@@ -11,6 +11,8 @@ if [ "$FIT" = 1 ]; then
   # emu has far more pins than the device; the fit is for logic/memory/DSP only.
   # Must precede quartus_map so the assignments reach the netlist.
   echo 'set_instance_assignment -name VIRTUAL_PIN ON -to *' >> probe.qsf
+  # DDIO outputs must drive a real pin
+  echo 'set_instance_assignment -name VIRTUAL_PIN OFF -to SDRAM_CLK' >> probe.qsf
   if [ -n "$FIT_DEVICE" ]; then
     sed -i "s/^set_global_assignment -name DEVICE .*/set_global_assignment -name DEVICE $FIT_DEVICE/" probe.qsf
   fi
