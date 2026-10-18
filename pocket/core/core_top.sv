@@ -216,13 +216,7 @@ module core_top (
     input wire [15:0] cont1_trig,
     input wire [15:0] cont2_trig,
     input wire [15:0] cont3_trig,
-    input wire [15:0] cont4_trig,
-
-    input  wire altera_reserved_tck,
-    input  wire altera_reserved_tdi,
-    output wire altera_reserved_tdo,
-    input  wire altera_reserved_tms
-
+    input wire [15:0] cont4_trig
 );
     // ---- Namco System 11 shell skeleton: bare APF cost. Every output is tied off. ----
     assign port_ir_tx = 0, port_ir_rx_disable = 1;
@@ -245,5 +239,4 @@ module core_top (
     assign audio_mclk = 0, audio_dac = 0, audio_lrck = 0;
     assign video_rgb = 0, video_rgb_clock = clk_74a, video_rgb_clock_90 = clk_74a,
            video_de = 0, video_skip = 0, video_vs = 0, video_hs = 0;
-    assign altera_reserved_tdo = 0;
 endmodule

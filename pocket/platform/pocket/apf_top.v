@@ -1,3 +1,5 @@
+// NOTE (Namco System11 Pocket): the four altera_reserved_* JTAG passthrough ports were removed (they count as user I/O).
+
 // Software License Agreement
 
 // The software supplied herewith by Analogue Enterprises Limited (the "Company”),
@@ -201,12 +203,6 @@ input   wire            user2,
 
 inout   wire            bist,
 output  wire            vpll_feed,
-
-input  wire             altera_reserved_tck,
-input  wire             altera_reserved_tdi,
-output wire             altera_reserved_tdo,
-input  wire             altera_reserved_tms,
-
 ///////////////////////////////////////////////////
 // RFU internal i2c bus (DNU)
 
@@ -460,12 +456,6 @@ core_top ic (
     .bridge_rd_data         ( bridge_rd_data ),
     .bridge_wr              ( bridge_wr ),
     .bridge_wr_data         ( bridge_wr_data ),
-
-    .altera_reserved_tck(altera_reserved_tck),
-    .altera_reserved_tdi(altera_reserved_tdi),
-    .altera_reserved_tdo(altera_reserved_tdo),
-    .altera_reserved_tms(altera_reserved_tms),
-
     .cont1_key              ( cont1_key ),
     .cont2_key              ( cont2_key ),
     .cont3_key              ( cont3_key ),
