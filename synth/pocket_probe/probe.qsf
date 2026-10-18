@@ -26,3 +26,5 @@ set_global_assignment -name SYSTEMVERILOG_FILE sys/shadowmask.sv
 set_global_assignment -name VERILOG_FILE sys/arcade_video.v
 set_global_assignment -name VERILOG_FILE sys/osd.v
 set_global_assignment -name SYSTEMVERILOG_FILE sys/math.sv
+set_global_assignment -name QIP_FILE rtl/pll.qip
+set_global_assignment -name QIP_FILE sys/pll_cfg.qip
