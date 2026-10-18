@@ -211,3 +211,9 @@ More than the ~1.2k the two modules' own sizes suggest: with the savestate engin
 (SS_DataRead_*, statemanager) are pruned too. Remaining gap to the Pocket's 18,480 ALMs: **~4,070 plus the Pocket shell**
 (APF bridge, data-slot loader, memory controller, video/audio out), which are not yet counted.
 Not yet dropped: hps_io/hps_ext, video_freak/scale/gamma, sdram2, debug glue in SYSTEM11.sv (likely another ~1-1.5k, but partly replaced by shell logic).
+
+## Second scaffolding batch (variant drop_scaffold2: video_freak, gamma_corr, savestate_ui, hps_ext stubbed; run 39159018610)
+
+22,553 -> **22,040 ALMs (-513)**, regs 22,816 -> 22,025, M10K 230 -> 229. Cumulative scaffolding drop: 25,282 -> 22,040 (**-3,242 ALMs**).
+Remaining gap to 18,480: **~3,560 ALMs plus the Pocket shell**. Still in: hps_io (file loading; replaced by the APF data-slot loader),
+sdram + sdram2, debug glue in SYSTEM11.sv.
