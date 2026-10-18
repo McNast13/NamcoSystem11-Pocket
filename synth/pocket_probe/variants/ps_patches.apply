@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""Apply the openfpga-PlayStation area patches that apply to S11 RTL (tools/ps_patch_chain.py).
+Usage: ps_patches.apply WORKDIR ...   (run from the repo root)
+"""
+import subprocess, sys, tempfile, shutil
+from pathlib import Path
+
+work = Path(sys.argv[1]).resolve()
+with tempfile.TemporaryDirectory() as t:
+    out = Path(t) / "chain"
+    subprocess.run([sys.executable, "-I", "tools/ps_patch_chain.py", str(out)], check=True)
+    for f in out.iterdir():
+        dst = work / "rtl" / f.name
+        if f.is_file() and dst.exists() and dst.read_bytes() != f.read_bytes():
+            shutil.copy(f, dst)
+            print("patched", f.name)
