@@ -16,6 +16,7 @@ jobs:
       - name: Free disk space
         run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache
       - name: Synthesize
+        shell: bash
         run: |
           mkdir -p work && cp -r references/SYSTEM11_MiSTer/. work/
           docker run --rm -v "$PWD/work:/build" -v "$PWD/synth/pocket_probe:/probe:ro" -w /build \
