@@ -227,3 +227,12 @@ sdram + sdram2, debug glue in SYSTEM11.sv.
 | + gpu_timing_prune (poly + 5 auxiliary engines) | 21,765 (+11) | 21,748 | **no gain**: REPRODUCIBLEGPUTIMING is tied to 0, so Quartus already removed the counters. Left in `ps_patch_chain.py` as opt-in (`gpu_timing_prune`), not in the default chain. |
 
 Remaining gap to 18,480: **~3,270 ALMs plus the Pocket shell.** Not ported: gpu_coordinates, gpu_borrowed_inputs (needs gpu_divider_pool, which saved ~700 ALUTs alone).
+
+## Pocket shell skeleton (pocket/, workflow `pocket-shell.yml`, run 39167013722)
+
+Analogue's APF top + pin map (copied from MIRLO64's platform/pocket; four `altera_reserved_*` JTAG passthrough ports removed - they counted as user I/O, 228 vs 224 pins)
+and a tied-off `core_top`. Real compile on 5CEBA4F23C8 with the real pin map: fitter **successful**, **124 ALMs**, 270 regs, 224/224 pins, no RAM/DSP, positive slack in all clocks.
+So the *mandatory* APF part is ~125 ALMs; the shell cost is in what we add: bridge command handler + data-slot loader, SDRAM/PSRAM controllers, video/audio output, input mapping.
+
+Precedent: MIRLO64 (N64 on Pocket, tortugaveloz/MIRLO64, Apache-2.0 + Analogue APF license) closes timing at ~17.4-17.7k ALMs (94-96%) including its shell, using
+OPTIMIZATION_TECHNIQUE AREA, PHYSICAL_SYNTHESIS_EFFORT FAST, PLACEMENT_EFFORT_MULTIPLIER 10 and a fitter-seed sweep. Plan for ~17.4k total, not 90%.
