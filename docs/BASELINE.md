@@ -136,3 +136,25 @@ Where the area is now (hierarchy, ALUTs): gpu 10.5k, c76_sound 7.7k (m37702 2.8k
 gte 2.5k, dma 1.6k, memorymux 1.3k, mdec 1.2k; non-core (SYSTEM11 top, sys/, glue) the remainder.
 `cpu_regfile_ram` was not tried: S11's cpu.vhd uses a hand-added flip-flop shadow register file (`regsFF`, HW workaround for an MLAB
 read-back bug) that the patch does not model. Remaining gap to ~26k ALUTs: ~10k. The GPU is the largest remaining block.
+
+## Pocket device resources (verified, replaces the earlier estimates)
+
+Source: a real Quartus 18.1.1 fitter report for the Pocket's device `5CEBA4F23C8`
+(pgate1/PlayStation_on_FPGA `Pocket/ap_core.fit.summary`; also the device used by openfpga-PlayStation), plus Analogue's
+[developer overview](https://analogue.co/developer/docs) for the board (two FPGAs; the core FPGA is fully available).
+
+| Resource | Capacity | Notes |
+|---|---|---|
+| ALMs | **18,480** | pgate1's reduced PSX (no sound, no FMV) fits at 17,060 (92%) |
+| Block RAM | **308 M10K / 3,153,920 bits** | that core uses 307/308 |
+| DSP blocks | **66** | that core uses 58 |
+| PLLs | 4 | |
+| I/O pins | 224 (all used by Analogue's wrapper in that fit) | |
+| External RAM | 2x16 MB cellular RAM (PSRAM), 64 MB SDRAM, 256 KB async SRAM | per Analogue's published board spec (secondary sources); not in the dev docs overview |
+
+Our current best probe (gte_laxer + ps_patches + c76_ram_bram + cpu_execute_share): 35,639 logic ALUTs (+875 memory ALUTs),
+25,254 registers, 60 DSP, **1,356,039 block-memory bits (43% of capacity)**. Synthesis reports ALUTs, not ALMs; at the
+MiSTer fit ratio (~0.71 ALM/ALUT) that is ~26k ALMs vs 18,480 available, i.e. **~7.5k ALMs (~29%) over**, unverified until a fit.
+
+What can be leveraged: ~1.8 Mbit of M10K is unused and 6 DSPs are free. Logic that can be re-expressed as RAM/ROM
+(register arrays, lookup tables, MLAB-based RAM which burns ALMs) should move to M10K; multipliers can use the spare DSPs.
