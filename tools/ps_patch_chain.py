@@ -21,6 +21,8 @@ ORDER = [  # only patches the shipped PS core applies (prepare_full_pocket.py), 
 ]
 # CPU patches are SHA-pinned to upstream cpu.vhd; S11's is hand-modified, so the pin is rebound to
 # the S11 text and only the patch's own anchor checks guard it. Opt-in: name them on the command line.
+# Patches re-derived for S11's diverged sources (same function name, tools/ module)
+OVERRIDE = {"prepare_gpu_tag_generation": "s11_gpu_tag_generation"}
 CPU_ORDER = [("prepare_cpu_execute_share", "execute_share_text")]
 
 
@@ -79,7 +81,7 @@ def main():
                     setattr(m, a, h)
         if only and mod.replace("prepare_", "") not in only:
             continue
-        f = getattr(importlib.import_module(mod), fn)
+        f = getattr(importlib.import_module(OVERRIDE.get(mod, mod)), fn)
         hits, err = [], ""
         domain = mod.split("_")[1]  # gpu / dma / mdec / cpu
         for cand in sv.CANDIDATES:
