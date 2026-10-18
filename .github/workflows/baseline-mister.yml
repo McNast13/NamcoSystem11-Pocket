@@ -1,0 +1,35 @@
+name: Baseline MiSTer compile
+# Compiles the unmodified SYSTEM11_MiSTer core to get a resource/timing baseline.
+on:
+  workflow_dispatch:
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Fetch only the MiSTer reference
+        run: git submodule update --init --depth 1 references/SYSTEM11_MiSTer
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache
+          df -h /
+      - name: Compile with Quartus (raetro/quartus:mister, Quartus 17.0)
+        run: |
+          docker run --rm -v "$PWD/references/SYSTEM11_MiSTer:/build" -w /build \
+            raetro/quartus:mister quartus_sh --flow compile SYSTEM11
+      - name: Summarize
+        if: always()
+        run: |
+          cd references/SYSTEM11_MiSTer/output_files 2>/dev/null || exit 0
+          { echo '## Fitter summary'; echo '```'; cat *.fit.summary; echo '```';
+            echo '## Timing (worst slack)'; echo '```'; grep -A3 -i "Slow 1100mV 85C Model Setup" *.sta.summary | head -40; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mister-baseline-reports
+          path: |
+            references/SYSTEM11_MiSTer/output_files/*.rpt
+            references/SYSTEM11_MiSTer/output_files/*.summary
