@@ -22,7 +22,7 @@ Reports are in the run's `mister-baseline-reports` artifact.
 | &nbsp;&nbsp;- cpu (incl. caches) | 3,499 | 78 | 6 | |
 | &nbsp;&nbsp;- dma | 1,703 | 2 | 0 | |
 | &nbsp;&nbsp;- memorymux | 897 | 0 | 0 | |
-| &nbsp;&nbsp;- mdec | 680 | 19 | 9 | **unused by System 11 - remove** |
+| &nbsp;&nbsp;- mdec | 680 | 19 | 9 | **needed for Tekken/S11 intro FMVs** (author restored it; stubbing = black/no movies) |
 | &nbsp;&nbsp;- savestates | 566 | 0 | 0 | cut |
 | &nbsp;&nbsp;- zn1_io | 573 | 4 | 0 | |
 | - `c76_sound` | 7,121 | 55 | 4 | C76 MCU 4,285 ALM / 16 M10K; C352 2,778 ALM / 7 M10K |
@@ -36,7 +36,7 @@ Assumed Pocket FPGA (Cyclone V 5CEBA4): ~18.5k ALMs, ~308 M10K (3.1 Mb), ~66 DSP
 - Essential logic today: cpu 3.5k + gpu 7.8k + gte 4.7k + dma 1.7k + C76/C352 7.1k = **~24.8k ALMs** before memory glue; the budget is ~18.5k with headroom needed for timing closure, so **we must cut roughly 30-40%**.
 - DSP: 86 in `emu` vs ~66 available - GPU (44) and GTE (15) multipliers must be shared/serialized (the PlayStation Pocket port's divider pool and lean memctrl show how).
 - M10K fits (227 vs ~308) but caches (cpu 78) and C76 (55) are big targets; VRAM/RAM must stay off-chip.
-- Free wins: MDEC (0.7k ALM, 9 DSP, 19 M10K), savestates, hps_io, light-gun, cheats, overlay.
+- Free wins: savestates, hps_io, light-gun, cheats, overlay.
 - Biggest unknowns: whether C76 (M37702 soft CPU, 4.3k ALM) can be slimmed, and whether the GPU can be time-multiplexed at an acceptable rate.
 
 Next: re-synthesize `emu` for the Pocket device (raetro/quartus:pocket) with the framework stripped, MDEC/savestates removed, to get a true Pocket-device number.
@@ -61,5 +61,15 @@ Next: re-synthesize `emu` for the Pocket device (raetro/quartus:pocket) with the
 | sdram | 411 | 893 | 0 | 0 |
 
 **Conclusion:** unmodified, `emu` is ~65-70% over the Pocket's logic and ~30% over its DSP budget. Reaching playable Tekken 2 means removing
-roughly 17k ALUTs (~40%): MDEC/savestates/hps_io/pll_cfg (~3k), then slimming GPU (multiplier sharing), GTE, CPU caches and the C76 core.
+roughly 17k ALUTs (~40%): savestates/hps_io/pll_cfg (~2k) and, optionally, MDEC, then slimming GPU (multiplier sharing), GTE, CPU caches and the C76 core.
 Next probe variants (`synth/pocket_probe/variants/<name>.sh`, applied before synthesis): no-MDEC, no-savestates, GPU with shared multipliers.
+
+## Variant results
+| Variant | ALUTs | Regs | Mem bits | DSP | Run |
+|---|---|---|---|---|---|
+| baseline | 43,352 | 31,385 | 1,324,039 | 86 | 39137853331 |
+| no_mdec (stub, FMV dead) | 42,179 (-1,173, -2.7%) | 30,482 | 1,264,711 | 77 (-9) | 39138672589 |
+
+**MDEC correction:** the author's comments in `psx_top.vhd` say MDEC was deliberately restored because Tekken/System 11 intro FMVs are
+MDEC streams, and that SPU and cheats were already stubbed to pay for it. Removing it saves only ~1.2k ALUTs and 9 DSP, and kills
+the intro movies (risk: boot code that waits on MDEC DMA could hang - untested). Treat as an optional late cut, not a first one.
