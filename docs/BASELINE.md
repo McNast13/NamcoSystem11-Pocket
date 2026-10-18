@@ -217,3 +217,13 @@ Not yet dropped: hps_io/hps_ext, video_freak/scale/gamma, sdram2, debug glue in 
 22,553 -> **22,040 ALMs (-513)**, regs 22,816 -> 22,025, M10K 230 -> 229. Cumulative scaffolding drop: 25,282 -> 22,040 (**-3,242 ALMs**).
 Remaining gap to 18,480: **~3,560 ALMs plus the Pocket shell**. Still in: hps_io (file loading; replaced by the APF data-slot loader),
 sdram + sdram2, debug glue in SYSTEM11.sv.
+
+## GPU patches on S11 (fits on 5CEBA9F23C8)
+
+| Step | ALMs | Regs | Notes |
+|---|---|---|---|
+| after scaffold drops | 22,040 | 22,025 | |
+| + gpu_tag_generation (S11 port, 11-bit tag -> 19-bit tag RAM; `tools/s11_gpu_tag_generation.py`) | **21,754** (-286) | 21,707 | all 12 shipped PS patches now apply |
+| + gpu_timing_prune (poly + 5 auxiliary engines) | 21,765 (+11) | 21,748 | **no gain**: REPRODUCIBLEGPUTIMING is tied to 0, so Quartus already removed the counters. Left in `ps_patch_chain.py` as opt-in (`gpu_timing_prune`), not in the default chain. |
+
+Remaining gap to 18,480: **~3,270 ALMs plus the Pocket shell.** Not ported: gpu_coordinates, gpu_borrowed_inputs (needs gpu_divider_pool, which saved ~700 ALUTs alone).

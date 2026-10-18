@@ -137,7 +137,7 @@ def main():
         print(f"{'APPLIED' if hits else 'SKIPPED':8}{mod[8:]:22} {','.join(hits) or err}")
         if hits:
             applied.append(mod[8:])
-    if not only or "gpu_timing_prune" in only:
+    if "gpu_timing_prune" in only:  # opt-in: measured no area gain (constant-propagated already)
         if timing_prune(out):
             applied.append("gpu_timing_prune")
     print("applied:", ",".join(applied))
