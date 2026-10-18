@@ -236,3 +236,15 @@ So the *mandatory* APF part is ~125 ALMs; the shell cost is in what we add: brid
 
 Precedent: MIRLO64 (N64 on Pocket, tortugaveloz/MIRLO64, Apache-2.0 + Analogue APF license) closes timing at ~17.4-17.7k ALMs (94-96%) including its shell, using
 OPTIMIZATION_TECHNIQUE AREA, PHYSICAL_SYNTHESIS_EFFORT FAST, PLACEMENT_EFFORT_MULTIPLIER 10 and a fitter-seed sweep. Plan for ~17.4k total, not 90%.
+
+## Area-mode settings, further drops, DMA probe (fits on 5CEBA9F23C8; base = 21,754 ALMs)
+
+| Variant on top of the base stack | ALMs | Change | Notes |
+|---|---|---|---|
+| area_profile (synthesis settings from the PS port) | 21,443 | **-311** | run 39167778357 |
+| area_profile + fitter_profile (MIRLO64: phys. synthesis FAST, register duplication, placement effort 10) | 21,948 | +505 vs area only | trades area for timing; not an area saving. Use only if timing needs it. |
+| drop_scaffold3 (gpu_overlay + hps_io video_calc stubs) | 21,644 | **-110** | run 39169102975 |
+| drop_scaffold3 + dma_no_cd_spu (DMA channels 3/4 removed) | 21,623 | -21 more | run 39169109431. Negligible, because the CD/SPU data inputs are constants and Quartus had folded them. Not worth the risk; not adopted. |
+
+memorymux (892 ALMs): not probed. Its legacy CD/SPU paths are the same kind of folded constants and the BIOS/fast-boot states are part of the boot/ROM state machine.
+Expected with area_profile + drop_scaffold3: ~21,330 ALMs. Remaining to the ~17.4k total target (MIRLO64 precedent) is ~3.9k for the core, minus the rest of the shell.
