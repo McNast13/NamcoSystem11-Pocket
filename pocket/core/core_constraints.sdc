@@ -9,6 +9,14 @@ if {[get_collection_size $vid_clocks] > 0} {
 } else {
     set_clock_groups -asynchronous -group { bridge_spiclk } -group { clk_74a } -group { clk_74b } -group $core_clocks
 }
+# Per-game configuration registers (platform id, KEYCUS type, gun flag, CAT702 keys): written once by the data-slot download while the core is
+# held in reset and constant afterwards. They fan out into the GPU's clk_2x logic (texture swizzle / GPU type selection); the 1x -> 2x timing
+# of that fan-out was the entire clk_2x failure on the first full fit (300 worst endpoints all launched from zn_keycus_id).
+set s11_static [get_registers -nowarn {core_top:ic|emu:s11|zn_keycus_id[*] core_top:ic|emu:s11|zn_platform_r[*] core_top:ic|emu:s11|zn_gun_game core_top:ic|emu:s11|zn_cat702_key_a[*] core_top:ic|emu:s11|zn_cat702_key_b_r[*]}]
+if {[get_collection_size $s11_static] > 0} {
+    set_false_path -from $s11_static
+    post_message -type info "S11_STATIC_CFG false path from [get_collection_size $s11_static] registers"
+}
 # The Laxer GTE engine runs on a half-rate clock enable (the shipped PS Pocket core uses the same constraint)
 set gte_state [get_registers -nowarn {*|PocketGTEEngine:engine|*}]
 if {[get_collection_size $gte_state] > 0} {
