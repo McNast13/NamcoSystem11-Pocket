@@ -319,3 +319,12 @@ Progress of the clk_2x worst slack: -5.2 (GTE, no multicycle) -> -3.26 -> -2.51 
 Caveats: A9 placement is looser than the real part; real 5CEBA4F23C8 fit still fails by 13 LABs with the MiSTer scaffolding in; SDC is the probe's, not the Pocket shell's (clock relationships will change).
 gpu_read_late contract: no vram_DOUT_READY in the clk_2x right after a read request.
 Stack: gte_laxer, ps_patches, gpu_divider_pool, gpu_area_reg, gpu_rect_timing, gpu_read_late, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3, c76_sfr_ram, area_profile, c352_tag_ram, drop_guns, no_texfilter.
+
+## Full core + Pocket shell on the real 5CEBA4F23C8 (2026-10-19, pocket-shell.yml project=s11full)
+SYSTEM11.sv (adapted by pocket/core/emu/pocket_emu.apply) + variants + shell compiles through synthesis first time (44 DSP, 1.37 Mbit RAM).
+- s11.qsf's performance settings (HIGH PERFORMANCE EFFORT, physical synthesis, register/logic duplication): fitter fails, 1,867 LABs needed of 1,848 (run 39293097968, 18,467 ALMs).
+- BALANCED + physical synthesis off (run 39295199679): still 1,850 LABs needed, fails by 2.
+- **AGGRESSIVE AREA + physical synthesis / duplication off + REMOVE_REDUNDANT_LOGIC_CELLS (run 39295212505): fits, 18,260 / 18,480 ALMs (99%), MDEC included.**
+  Timing (slow 85C, real pins, SDRAM pin constraints applied): clk_3x +0.42, sdram_chip_clk +1.32, clk_1x +1.92, video +3.5, clk_74a +4.0, holds all positive;
+  **clk_2x -0.63 ns** (the only failing domain). Settings are now part of tools/build_core_tree.py's s11full.qsf.
+- Shell cost (synthesis ALUTs): sdram ctrl 434, vram 372, audio 257, core_bridge_cmd 202, apf_video 200, ioctl bridge 156, APF pad controller 152.
