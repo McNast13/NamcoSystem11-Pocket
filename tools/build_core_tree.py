@@ -29,14 +29,16 @@ def main():
     (out / "build_id.v").write_text('`define BUILD_DATE "000000"\n')
 
     apply = list(APPLY)
-    if os.environ.get("S11_NO_MDEC") == "1":      # frees ~600 ALMs (no intro/attract FMVs); used when a debug build does not otherwise fit
-        apply.append("no_mdec")
     for v in apply:
         script = VARIANTS / f"{v}.apply"
         r = subprocess.run([sys.executable, str(script), str(out), *ARGS], cwd=ROOT, capture_output=True, text=True)
         if r.returncode:
             sys.exit(f"{v}.apply failed:\n{r.stdout}\n{r.stderr}")
         print(f"applied {v}: {r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ''}")
+
+    if os.environ.get("S11_NO_MDEC") == "1":      # frees ~600 ALMs (no intro/attract FMVs); used when a debug build does not otherwise fit
+        shutil.copy(VARIANTS / "no_mdec.vhd", out / "rtl/mdec.vhd")
+        print("applied no_mdec")
 
     # c76_ram_bram.sh: the 512 B C76 RAM debug taps read it combinationally and stop block-RAM inference; tie them off
     c76 = out / "rtl/c76.vhd"
