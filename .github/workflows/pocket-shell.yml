@@ -9,6 +9,10 @@ on:
       qsf_extra:
         description: "extra QSF lines appended to the generated s11full.qsf (experiments); use \\n between lines"
         default: ""
+      no_mdec:
+        description: "drop MDEC (frees ~600 ALMs; no FMVs)"
+        type: boolean
+        default: false
       label:
         description: "artifact label"
         default: ""
@@ -23,6 +27,8 @@ jobs:
         run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache
       - name: Core source tree (full build only)
         if: ${{ inputs.project == 's11full' }}
+        env:
+          S11_NO_MDEC: ${{ inputs.no_mdec && '1' || '0' }}
         run: python3 tools/build_core_tree.py pocket/build/core_tree
       - name: Extra QSF lines
         if: ${{ inputs.qsf_extra != '' }}

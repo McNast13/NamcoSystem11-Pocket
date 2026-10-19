@@ -7,7 +7,7 @@ The reference submodule is never modified.
 
 Usage: build_core_tree.py OUTDIR      (run from the repository root)
 """
-import re, shutil, subprocess, sys
+import os, re, shutil, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +28,10 @@ def main():
     shutil.copytree(REF, out, ignore=shutil.ignore_patterns(".git", "releases", "art", "*.md"))
     (out / "build_id.v").write_text('`define BUILD_DATE "000000"\n')
 
-    for v in APPLY:
+    apply = list(APPLY)
+    if os.environ.get("S11_NO_MDEC") == "1":      # frees ~600 ALMs (no intro/attract FMVs); used when a debug build does not otherwise fit
+        apply.append("no_mdec")
+    for v in apply:
         script = VARIANTS / f"{v}.apply"
         r = subprocess.run([sys.executable, str(script), str(out), *ARGS], cwd=ROOT, capture_output=True, text=True)
         if r.returncode:
