@@ -248,3 +248,9 @@ OPTIMIZATION_TECHNIQUE AREA, PHYSICAL_SYNTHESIS_EFFORT FAST, PLACEMENT_EFFORT_MU
 
 memorymux (892 ALMs): not probed. Its legacy CD/SPU paths are the same kind of folded constants and the BIOS/fast-boot states are part of the boot/ROM state machine.
 Expected with area_profile + drop_scaffold3: ~21,330 ALMs. Remaining to the ~17.4k total target (MIRLO64 precedent) is ~3.9k for the core, minus the rest of the shell.
+
+## C76 SFR to M10K (2026-10-19, run 39230421553, 5CEBA9F23C8 fit)
+Stack gte_laxer, ps_patches, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3, c76_sfr_ram (no area_profile): **21,272 ALMs**, 20,330 regs,
+60 DSP, 1.35 Mbit. The C76 wrapper's local logic fell 751 -> 402 ALMs (generic SFR readback store in M10K; ten wrapper-consumed SFRs stay in FFs).
+Not simulated. Placed: c76_sound 5,058 (m37702 1,756, c352 2,824, wrapper 402), psx 14,834 (gpu 6,724, cpu 2,484, gte 2,116, memorymux 970, dma 991, mdec 600),
+hps_io 240, sdram 367.

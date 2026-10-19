@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""CPU: read operands from the MLAB register file instead of the 32x32 flip-flop shadow copy.
+
+cpu.vhd keeps a 1,024-FF shadow regfile (regsFF) with two combinational 32:1 x 32-bit read muxes, added in 2026-06 when
+the MLAB read looked unreliable on MiSTer hardware (later traced in the same file to a read-during-write forwarding gap,
+now covered by the regs_wt_* bypass that stays in place). The MLAB copies (iregisterfile3/4, async read, same write port)
+already exist. Point regFF1/regFF2 at them; the debug taps on regsFF are zeroed so the shadow copy is pruned.
+RISK: if the MiSTer-era read failure was real MLAB behaviour, this shows up as wrong operands on hardware."""
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1]).resolve() / "rtl/cpu.vhd"
+t = p.read_text()
+
+def sub(old, new):
+    global t
+    assert t.count(old) == 1, old
+    t = t.replace(old, new)
+
+sub("   regFF1 <= regsFF(to_integer(decodeSource1));\n", "   regFF1 <= unsigned(regs3_q_b);\n")
+sub("   regFF2 <= regsFF(to_integer(decodeSource2));\n", "   regFF2 <= unsigned(regs4_q_b);\n")
+sub("std_logic_vector(regsFF(4));", "(others => '0');")
+sub("std_logic_vector(regsFF(5));", "(others => '0');")
+sub("std_logic_vector(regsFF(2));", "(others => '0');")
+sub("std_logic_vector(regsFF(17)(15 downto 0)) & std_logic_vector(regsFF(18)(15 downto 0));", "(others => '0');")
+sub("std_logic_vector(regsFF(29));", "(others => '0');")
+p.write_text(t)
+print("cpu.vhd: operand read from MLAB regfile")
