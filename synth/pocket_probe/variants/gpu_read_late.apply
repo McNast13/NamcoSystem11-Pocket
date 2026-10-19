@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""GPU VRAM read setup: reqVRAMremain/remain2/next/wrap one clk2x after the request (port of openfpga-PlayStation gpu_read_late).
+
+After the gpu_area_reg/gpu_rect fixes, the worst clk_2x paths on the Pocket (-2.5 ns on the 5CEBA9) all end in reqVRAMwrap:
+request mux -> rounded size -> compare -> subtract -> remain/wrap, in the cycle vram_RD is issued. Only vram_BURSTCNT and
+vram_ADDR are needed on the request edge; the other four registers are first read on a vram_DOUT_READY, which a memory
+cannot deliver in the very next clk2x. So latch the request's x/size and compute them on the following edge.
+Differs from the PS script only in the wrap expression (S11 has no psx_gpu_read_math; it keeps its own arithmetic).
+Contract: no vram_DOUT_READY in the clk2x right after a read request."""
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1]).resolve() / "rtl/gpu.vhd"
+t = p.read_text()
+
+def sub(old, new):
+    global t
+    assert t.count(old) == 1, old.strip().splitlines()[0]
+    t = t.replace(old, new)
+
+sub("   signal reqVRAMnext               : unsigned(7 downto 0);\n",
+"""   signal reqVRAMnext               : unsigned(7 downto 0);
+   -- gpu-read-late: read setup finished one clk after the request
+   signal readLatePend              : std_logic := '0';
+   signal readLateWrap              : std_logic := '0';
+   signal readLateXPos              : unsigned(9 downto 0) := (others => '0');
+   signal readLateSize              : unsigned(10 downto 0) := (others => '0');
+""")
+sub("""                        if (reqVRAMSizeRounded > 512) then
+                           vram_BURSTCNT  <= x"80";
+                           reqVRAMremain  <= x"80" - 1;
+                           reqVRAMremain2 <= x"80" - 1;
+                           reqVRAMnext    <= resize((reqVRAMSizeRounded - 512) / 4, 8);
+                        else
+                           vram_BURSTCNT  <= std_logic_vector(reqVRAMSizeRounded(9 downto 2));
+                           reqVRAMremain  <= reqVRAMSizeRounded(9 downto 2) - 1;
+                           reqVRAMremain2 <= reqVRAMSizeRounded(9 downto 2) - 1;
+                           reqVRAMnext    <= (others => '0');
+                        end if;
+                        reqVRAMwrap <= (others => '0');
+                        if (vram2vram_reqVRAMEnable = '1' or vram2cpu_reqVRAMEnable = '1') then
+                           if (reqVRAMXPos + reqVRAMSizeRounded > 1024) then
+                              reqVRAMwrap <= resize(((reqVRAMXPos + reqVRAMSizeRounded) - 1024) / 4, 8);
+                           end if;
+                        end if;
+""",
+"""                        if (reqVRAMSizeRounded > 512) then
+                           vram_BURSTCNT  <= x"80";
+                        else
+                           vram_BURSTCNT  <= std_logic_vector(reqVRAMSizeRounded(9 downto 2));
+                        end if;
+                        -- remain, remain2, next and wrap follow on the next clk
+                        readLatePend <= '1';
+                        readLateWrap <= vram2vram_reqVRAMEnable or vram2cpu_reqVRAMEnable;
+                        readLateXPos <= reqVRAMXPos;
+                        readLateSize <= reqVRAMSizeRounded;
+""")
+sub("""            case (vramState) is
+               when IDLE =>
+""",
+"""            -- gpu-read-late: the read setup of the request one clk ago
+            readLatePend <= '0';
+            if (readLatePend = '1') then
+               reqVRAMremain  <= unsigned(vram_BURSTCNT) - 1;
+               reqVRAMremain2 <= unsigned(vram_BURSTCNT) - 1;
+               if (readLateSize > 512) then
+                  reqVRAMnext <= resize((readLateSize - 512) / 4, 8);
+               else
+                  reqVRAMnext <= (others => '0');
+               end if;
+               reqVRAMwrap <= (others => '0');
+               if (readLateWrap = '1' and readLateXPos + readLateSize > 1024) then
+                  reqVRAMwrap <= resize(((readLateXPos + readLateSize) - 1024) / 4, 8);
+               end if;
+            end if;
+
+            case (vramState) is
+               when IDLE =>
+""")
+p.write_text(t)
+print("gpu: read setup moved one clk after the request")

@@ -305,3 +305,9 @@ clk_2x: over 400 failing endpoints, all below -2 ns: gpu_rect yPos/etc (-3.26, 2
 Without the GTE multicycle constraint the Laxer GTE shows -5.2 ns at clk_2x (GuardianSoul's adapter runs it on a half-rate CE, hence the constraint).
 The PS Pocket core closes this domain with GPU timing patches that are not ported yet: gpu_area_reg (registers the drawing-area compares), gpu_coordinates, gpu_payload_timing, gpu_cache_controls, gpu_read_late, gpu_sort_reread (several need gpu_divider_pool, which is now in).
 First check run (39256943618) on the real 5CEBA4F23C8: fitter fails, 1,861 LABs needed vs 1,848 (13 over).
+
+## gpu_area_reg + gpu_rect_timing (2026-10-19, run 39268174196, 5CEBA9F23C8 fit + sta)
+18,000 ALMs. clk_2x Fmax 55.5 -> 57.9 MHz, worst slack -3.26 -> **-2.51 ns**; clk_1x 41.4 MHz (met). gpu_rect and drawing-area paths are no longer on the list.
+New worst paths (400 endpoints between -2.5 and -2.0 ns) all end in gpu.vhd reqVRAMwrap: request mux -> rounded size -> compare -> subtract in the cycle vram_RD is issued.
+gpu_rect_timing is mine (CHECKPOS split into three steps; the PS port has no equivalent). gpu_area_reg is the PS patch lifted out of its script.
+Next: gpu_read_late (PS patch, adapted to S11 arithmetic): remain/next/wrap computed one clk2x after the request.
