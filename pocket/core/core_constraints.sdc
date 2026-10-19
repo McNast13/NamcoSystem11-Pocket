@@ -4,11 +4,12 @@
 # every crossing is a gray-code FIFO or a 2-flop synchroniser (s11_ioctl_bridge / s11_loader FIFO, lock/reset/pad synchronisers).
 set core_clocks [get_clocks -nowarn {ic|pll|pll|general[0]* ic|pll|pll|general[1]* ic|pll|pll|general[2]*}]
 set vid_clocks  [get_clocks -nowarn {ic|pll|video_pll|general[0]* ic|pll|video_pll|general[1]*}]
-if {[get_collection_size $vid_clocks] > 0} {
-    set_clock_groups -asynchronous -group { bridge_spiclk } -group { clk_74a } -group { clk_74b } -group $core_clocks -group $vid_clocks
-} else {
-    set_clock_groups -asynchronous -group { bridge_spiclk } -group { clk_74a } -group { clk_74b } -group $core_clocks
-}
+# audio PLL (I2S master/serial clocks from clk_74b): the audio FIFO is a dcfifo crossing from clk_1x
+set aud_clocks  [get_clocks -nowarn {ic|audio|audio|audio_pll|mf_audio_pll_inst|altera_pll_i|general[0]* ic|audio|audio|audio_pll|mf_audio_pll_inst|altera_pll_i|general[1]*}]
+set groups [list -group { bridge_spiclk } -group { clk_74a } -group { clk_74b } -group $core_clocks]
+if {[get_collection_size $vid_clocks] > 0} { lappend groups -group $vid_clocks }
+if {[get_collection_size $aud_clocks] > 0} { lappend groups -group $aud_clocks }
+set_clock_groups -asynchronous {*}$groups
 # Per-game configuration registers (platform id, KEYCUS type, gun flag, CAT702 keys): written once by the data-slot download while the core is
 # held in reset and constant afterwards. They fan out into the GPU's clk_2x logic (texture swizzle / GPU type selection); the 1x -> 2x timing
 # of that fan-out was the entire clk_2x failure on the first full fit (300 worst endpoints all launched from zn_keycus_id).
