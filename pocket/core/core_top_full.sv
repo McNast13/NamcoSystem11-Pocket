@@ -471,6 +471,14 @@ module core_top (
                            idx_seen, ce_seen, hs_seen, vs_seen, de_seen, busy_seen, rdy_seen, rd_seen, we_seen, vr_busy, aud_seen,
                            settings[3], 3'b000};
     wire [127:0] diag_bus = {flags_a, emu_dbg[127:96], emu_dbg[63:32], emu_dbg[31:0]};
+    reg  vs_wd_d = 1'b0; reg [22:0] vs_wd = 23'd0; reg diag_auto = 1'b1;
+    always @(posedge clk_vid) begin
+        vs_wd_d <= vid_vs;
+        if (vid_vs && !vs_wd_d) begin vs_wd <= 23'd0; diag_auto <= 1'b0; end
+        else if (&vs_wd) diag_auto <= 1'b1;
+        else vs_wd <= vs_wd + 1'b1;
+    end
+    wire diag_sel = diag_vid | diag_auto;
     wire dg_ce, dg_hs, dg_vs, dg_hbl, dg_vbl; wire [23:0] dg_rgb;
     s11_diag diag (.clk(clk_vid), .bus(diag_bus), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
 
@@ -479,11 +487,11 @@ module core_top (
     wire [23:0] apf_rgb;
     psx_apf_video #(.STEADY_INTERLACE(0), .SLOT_SELECT(1), .PAD_LINES(1), .CENTER_LINES(1), .VS_ON_HS(1),
                     .CROP_LINES(1), .BLANK_TOP(1), .LEAD_LINE(1), .MID_W(384)) apf_video (
-        .clk(clk_vid), .ce(diag_vid ? dg_ce : vid_ce),
-        .hsync(diag_vid ? dg_hs : vid_hs), .vsync(diag_vid ? dg_vs : vid_vs),
-        .hblank(diag_vid ? dg_hbl : vid_hbl), .vblank(diag_vid ? dg_vbl : vid_vbl), .interlace(diag_vid ? 1'b0 : vid_ilace),
-        .blank(diag_vid ? 1'b0 : core_reset), .weave(1'b0), .field_swap(1'b0), .video_test(2'b00),
-        .rgb_in(diag_vid ? dg_rgb : {vid_r, vid_g, vid_b}),
+        .clk(clk_vid), .ce(diag_sel ? dg_ce : vid_ce),
+        .hsync(diag_sel ? dg_hs : vid_hs), .vsync(diag_sel ? dg_vs : vid_vs),
+        .hblank(diag_sel ? dg_hbl : vid_hbl), .vblank(diag_sel ? dg_vbl : vid_vbl), .interlace(diag_sel ? 1'b0 : vid_ilace),
+        .blank(diag_sel ? 1'b0 : core_reset), .weave(1'b0), .field_swap(1'b0), .video_test(2'b00),
+        .rgb_in(diag_sel ? dg_rgb : {vid_r, vid_g, vid_b}),
         .hs(apf_hs), .vs(apf_vs), .de(apf_de), .skip(apf_skip), .rgb(apf_rgb)
     );
     // The APF's DDIO output registers capture rgb/de/hs/vs/skip on the rising edge of video_rgb_clock. Launching from that same edge is a
@@ -494,7 +502,9 @@ module core_top (
     assign video_rgb = o_rgb, video_de = o_de, video_skip = o_skip, video_hs = o_hs, video_vs = o_vs;
 
     // ---- audio (in diagnostic mode a 1 kHz square tone proves the clocks, the audio PLL and the I2S path independently of the core) ----
-    wire diag_vid_1x = settings[3];
+    reg [1:0] alive_s = 2'b00; always @(posedge clk1x) alive_s <= {alive_s[0], ~diag_auto};
+    wire vid_alive_1x = alive_s[1];
+    wire diag_vid_1x = settings[3] | ~vid_alive_1x;
     reg [14:0] tone_cnt = 0; reg signed [15:0] tone = 16'sh2000;
     always @(posedge clk1x) begin
         if (tone_cnt == 15'd16933) begin tone_cnt <= 0; tone <= -tone; end else tone_cnt <= tone_cnt + 1'b1;
