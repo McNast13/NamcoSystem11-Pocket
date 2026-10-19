@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           docker run --rm -v "$PWD/pocket:/pocket" -w /pocket/project raetro/quartus:pocket \
-            sh -c "quartus_sh --flow compile ${{ inputs.project }}" | tee build.log || true
+            sh -c "quartus_sh --flow compile ${{ inputs.project }}; quartus_sta -t report_paths.tcl ${{ inputs.project }}" | tee build.log || true
       - name: Summary
         if: always()
         run: |
@@ -44,6 +44,7 @@ jobs:
           name: shell-${{ inputs.project }}${{ inputs.label && format('-{0}', inputs.label) || '' }}
           path: |
             pocket/project/output_files/*.rpt
+            pocket/project/output_files/paths.*
             pocket/project/output_files/*.summary
             pocket/project/output_files/*.smsg
             build.log

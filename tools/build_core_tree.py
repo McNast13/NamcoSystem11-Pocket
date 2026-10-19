@@ -67,6 +67,15 @@ def main():
     assert q.count("QIP_FILE ../core/core.qip") == 1
     q = q.replace("QIP_FILE ../core/core.qip", "QIP_FILE ../core/core_full.qip")
     q += '\nset_global_assignment -name VERILOG_MACRO "MISTER_FB=1"\nset_global_assignment -name VHDL_INPUT_VERSION VHDL_2008\n'
+    # area-first fitter settings: the performance-oriented ones in s11.qsf (physical synthesis, register/logic duplication) cost enough ALMs
+    # that the full core does not fit the 5CEBA4 (run 39293097968: 1,867 LABs needed of 1,848); these fit it at 18,260 ALMs
+    q += (
+        'set_global_assignment -name OPTIMIZATION_MODE "AGGRESSIVE AREA"\n'
+        'set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC OFF\n'
+        'set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION OFF\n'
+        'set_global_assignment -name PHYSICAL_SYNTHESIS_ASYNCHRONOUS_SIGNAL_PIPELINING OFF\n'
+        'set_global_assignment -name ROUTER_LCELL_INSERTION_AND_LOGIC_DUPLICATION OFF\n'
+        'set_global_assignment -name REMOVE_REDUNDANT_LOGIC_CELLS ON\n')
     (proj / "s11full.qsf").write_text(q)
     print("wrote", proj / "s11full.qsf")
 
