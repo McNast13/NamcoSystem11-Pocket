@@ -749,3 +749,8 @@ set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to cram0_ub_n
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to cram1_ub_n
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to cram0_lb_n
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to cram1_lb_n
+
+# SDRAM: reviewed CL3 I/O packing (openfpga-PlayStation native SDRAM recipe)
+set_global_assignment -name AUTO_DELAY_CHAINS ON
+set_instance_assignment -name ALLOW_SYNCH_CTRL_USAGE OFF -to "core_top:ic|s11_ram:ram|psx_sdram_ctrl:controller|dq_oe"
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to "dram_dq[*]"
