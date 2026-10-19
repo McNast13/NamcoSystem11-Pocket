@@ -48,8 +48,15 @@ sub("\tinput         OSD_STATUS\n);",
 \tinput  [15:0] PK_ANALOG_R0, PK_ANALOG_R1, PK_ANALOG_R2, PK_ANALOG_R3,
 \tinput [127:0] PK_STATUS,
 \toutput        PK_VID_CE, PK_VID_HS, PK_VID_VS, PK_VID_HBL, PK_VID_VBL, PK_VID_ILACE,
-\toutput  [7:0] PK_VID_R, PK_VID_G, PK_VID_B
+\toutput  [7:0] PK_VID_R, PK_VID_G, PK_VID_B,
+\tinput         PK_EE_RD,
+\tinput   [9:0] PK_EE_ADDR,
+\toutput [31:0] PK_EE_Q,
+\toutput        PK_EE_SAVE_REQ
 );""")
+# EEPROM save-back: the read-back port of zn1_io is driven by core_top instead of the hps_io upload
+sub("wire       ee_up_rd   = ioctl_upload & (ioctl_index == 8'd9);", "wire       ee_up_rd   = PK_EE_RD;")
+sub("wire [9:0] ee_up_addr = ioctl_addr[11:2];", "wire [9:0] ee_up_addr = PK_EE_ADDR;")
 
 # 2. clocks
 cut(r"\npll pll\n\(", r"\n\);\n", "\nassign clk_1x = PK_CLK1X;\nassign clk_2x = PK_CLK2X;\nassign clk_3x = PK_CLK3X;\nassign clk_3x_ps = PK_CLK3X;\nassign pll_locked = PK_LOCKED;\n")
@@ -107,6 +114,8 @@ assign PK_VID_ILACE = video_interlace;
 assign PK_VID_R = r;
 assign PK_VID_G = g;
 assign PK_VID_B = b;
+assign PK_EE_Q = ee_up_q;
+assign PK_EE_SAVE_REQ = ioctl_upload_req;
 """ + t[m[0].start():]
 p.write_text(t)
 print("SYSTEM11.sv: PLLs and hps_io replaced by PK_* ports")

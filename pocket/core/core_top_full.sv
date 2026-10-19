@@ -244,6 +244,7 @@ module core_top (
     always @(*) begin
         casex (bridge_addr)
             32'hF8xxxxxx: bridge_rd_mux = cmd_bridge_rd_data;
+            32'h09xxxxxx: bridge_rd_mux = ee_shadow_q;          // EEPROM save-back (data slot 9)
             default:      bridge_rd_mux = 32'h0;
         endcase
     end
@@ -352,6 +353,36 @@ module core_top (
         map_stick = {s[15:8] ^ 8'h80, s[7:0] ^ 8'h80};
     endfunction
 
+    // ---- EEPROM save-back: a shadow copy readable from the bridge ----
+    // zn1_io's EEPROM RAM has one port that the MIPS also uses, so the contents are copied out (1024 words, ~4k clk1x) after
+    // the game starts and again after every save request the core raises (1.5 s after the last EEPROM write).
+    wire        ee_save_req;
+    wire [31:0] ee_q;
+    reg         ee_rd = 1'b0;
+    reg  [9:0]  ee_a = 10'd0;
+    reg  [1:0]  ee_wait = 2'd0;
+    reg  [10:0] ee_cnt = 11'd0;                 // 0..1023 scanning, 1024 idle
+    reg         ee_wr_sh = 1'b0;
+    reg  [9:0]  ee_wa_sh = 10'd0;
+    reg         save_d = 1'b0, run_d_hold = 1'b0;
+    reg  [15:0] start_delay = 16'd0;
+    (* ramstyle = "M10K" *) reg [31:0] ee_shadow [0:1023];
+    reg  [31:0] ee_shadow_q = 32'd0;
+    always @(posedge clk1x) begin
+        save_d <= ee_save_req; run_d_hold <= &start_delay;
+        ee_wr_sh <= 1'b0;
+        if (core_reset) start_delay <= 16'd0;
+        else if (!(&start_delay)) start_delay <= start_delay + 1'b1;
+        if ((ee_save_req && !save_d) || (&start_delay && !run_d_hold)) begin ee_cnt <= 11'd0; ee_wait <= 2'd0; end
+        else if (!ee_cnt[10]) begin
+            ee_rd <= 1'b1; ee_a <= ee_cnt[9:0];
+            ee_wait <= ee_wait + 1'b1;
+            if (ee_wait == 2'd3) begin ee_wr_sh <= 1'b1; ee_wa_sh <= ee_cnt[9:0]; ee_cnt <= ee_cnt + 1'b1; ee_wait <= 2'd0; end
+        end else ee_rd <= 1'b0;
+    end
+    always @(posedge clk1x) if (ee_wr_sh) ee_shadow[ee_wa_sh] <= ee_q;
+    always @(posedge clk_74a) ee_shadow_q <= ee_shadow[bridge_addr[11:2]];
+
     // ---- Core settings (interact.json): DIP1 Test, DIP2 Freeze, held Service button ----
     reg [2:0] settings74 = 3'b000;
     always @(posedge clk_74a) if (bridge_wr) begin
@@ -397,7 +428,8 @@ module core_top (
         .PK_ANALOG_R2(map_stick(j3_s[31:16])), .PK_ANALOG_R3(map_stick(j4_s[31:16])),
         .PK_STATUS({30'd0, settings[1], settings[0], 96'd0}),
         .PK_VID_CE(vid_ce), .PK_VID_HS(vid_hs), .PK_VID_VS(vid_vs), .PK_VID_HBL(vid_hbl), .PK_VID_VBL(vid_vbl),
-        .PK_VID_ILACE(vid_ilace), .PK_VID_R(vid_r), .PK_VID_G(vid_g), .PK_VID_B(vid_b)
+        .PK_VID_ILACE(vid_ilace), .PK_VID_R(vid_r), .PK_VID_G(vid_g), .PK_VID_B(vid_b),
+        .PK_EE_RD(ee_rd), .PK_EE_ADDR(ee_a), .PK_EE_Q(ee_q), .PK_EE_SAVE_REQ(ee_save_req)
     );
 
     // ---- GPU VRAM on the two PSRAMs ----
