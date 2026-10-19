@@ -10,6 +10,10 @@ on:
         description: "also run quartus_fit (virtual pins)"
         type: boolean
         default: false
+      sta:
+        description: "also run quartus_sta (needs fit); writes probe.sta.*.rpt"
+        type: boolean
+        default: false
       device:
         description: "override FPGA part for the fit (e.g. 5CEBA9F23C8 to measure true ALMs of a design too big for the Pocket)"
         default: ""
@@ -30,7 +34,7 @@ jobs:
           for v in $(echo "${{ inputs.variant }}" | tr ',' ' '); do
             [ -f "synth/pocket_probe/variants/$v.apply" ] && python3 "synth/pocket_probe/variants/$v.apply" work references/openfpga-PlayStation references/Laxer-PS-GTE references/PSX_MiSTer
           done
-          docker run --rm -e FIT=${{ inputs.fit && 1 || 0 }} -e FIT_DEVICE="${{ inputs.device }}" -v "$PWD/work:/build" -v "$PWD/synth/pocket_probe:/probe:ro" -w /build \
+          docker run --rm -e FIT=${{ inputs.fit && 1 || 0 }} -e STA=${{ inputs.sta && 1 || 0 }} -e FIT_DEVICE="${{ inputs.device }}" -v "$PWD/work:/build" -v "$PWD/synth/pocket_probe:/probe:ro" -w /build \
             raetro/quartus:pocket /probe/run.sh "${{ inputs.variant }}" | tee map.log
       - name: Summary
         if: always()
@@ -39,8 +43,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: probe-${{ inputs.variant || 'baseline' }}${{ inputs.device && format('-{0}', inputs.device) || '' }}${{ inputs.fit && '-fit' || '' }}
+          name: probe-${{ inputs.variant || 'baseline' }}${{ inputs.device && format('-{0}', inputs.device) || '' }}${{ inputs.fit && '-fit' || '' }}${{ inputs.sta && '-sta' || '' }}
           path: |
             work/output_files/probe.map.*
             work/output_files/probe.fit.*
+            work/output_files/probe.sta.*
             map.log

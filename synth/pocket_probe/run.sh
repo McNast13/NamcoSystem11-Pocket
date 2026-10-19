@@ -13,16 +13,24 @@ if [ "$FIT" = 1 ]; then
   # (explicit per-port list: DDIO clock outputs SDRAM_CLK/SDRAM2_CLK must stay real pins, and
   # a wildcard VIRTUAL_PIN ON is not overridden by a later OFF)
   awk '/^module emu/{f=1} f&&/\);/{f=0} f' SYSTEM11.sv | sed 's@//.*@@' | grep -E '\b(input|output|inout)\b' \
-    | sed -E 's/[,;[:space:]]*$//' | awk '{print $NF}' | grep -v -E '^(SDRAM_CLK|SDRAM2_CLK)$' | while read n; do
+    | sed -E 's/[,;[:space:]]*$//' | awk '{print $NF}' | grep -v -E '^(SDRAM_CLK|SDRAM2_CLK|CLK_50M)$' | while read n; do
       echo "set_instance_assignment -name VIRTUAL_PIN ON -to $n" >> probe.qsf
       echo "set_instance_assignment -name VIRTUAL_PIN ON -to \"$n[*]\"" >> probe.qsf
     done
   if [ -n "$FIT_DEVICE" ]; then
     sed -i "s/^set_global_assignment -name DEVICE .*/set_global_assignment -name DEVICE $FIT_DEVICE/" probe.qsf
   fi
-  grep -n "DEVICE\|VIRTUAL" probe.qsf
+  if [ "$STA" = 1 ]; then
+    cp /probe/probe.sdc probe.sdc
+    echo 'set_global_assignment -name SDC_FILE probe.sdc' >> probe.qsf
+  fi
+  grep -n "DEVICE\|VIRTUAL\|SDC" probe.qsf
 fi
 quartus_map probe -c probe
 if [ "$FIT" = 1 ]; then
   quartus_fit probe -c probe || true
+fi
+if [ "$FIT" = 1 ] && [ "$STA" = 1 ]; then
+  cp /probe/sta.tcl sta.tcl
+  quartus_sta -t sta.tcl || true
 fi
