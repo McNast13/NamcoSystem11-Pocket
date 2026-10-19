@@ -75,7 +75,10 @@ def main():
         'set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION OFF\n'
         'set_global_assignment -name PHYSICAL_SYNTHESIS_ASYNCHRONOUS_SIGNAL_PIPELINING OFF\n'
         'set_global_assignment -name ROUTER_LCELL_INSERTION_AND_LOGIC_DUPLICATION OFF\n'
-        'set_global_assignment -name REMOVE_REDUNDANT_LOGIC_CELLS ON\n')
+        'set_global_assignment -name REMOVE_REDUNDANT_LOGIC_CELLS ON\n'
+        # clk_1x -> clk_3x hold (clock skew 0.5 ns > data delay 0.4 ns on the ioctl/ch3 handoff): let the fitter fix hold on all paths
+        'set_global_assignment -name OPTIMIZE_HOLD_TIMING "ALL PATHS"\n'
+        'set_global_assignment -name OPTIMIZE_MULTI_CORNER_TIMING ON\n')
     (proj / "s11full.qsf").write_text(q)
     print("wrote", proj / "s11full.qsf")
 
