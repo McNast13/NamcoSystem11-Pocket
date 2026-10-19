@@ -311,3 +311,11 @@ First check run (39256943618) on the real 5CEBA4F23C8: fitter fails, 1,861 LABs 
 New worst paths (400 endpoints between -2.5 and -2.0 ns) all end in gpu.vhd reqVRAMwrap: request mux -> rounded size -> compare -> subtract in the cycle vram_RD is issued.
 gpu_rect_timing is mine (CHECKPOS split into three steps; the PS port has no equivalent). gpu_area_reg is the PS patch lifted out of its script.
 Next: gpu_read_late (PS patch, adapted to S11 arithmetic): remain/next/wrap computed one clk2x after the request.
+
+## gpu_read_late: clk_2x essentially closed (2026-10-19, run 39271345821, 5CEBA9F23C8 fit + sta)
+Stack + gpu_area_reg + gpu_rect_timing + gpu_read_late: 18,017 ALMs. clk_2x Fmax **67.63 MHz** (target 67.74), clk_1x 41.0 MHz.
+Worst slack in the whole design **-0.024 ns** (setup, slow model; 2 endpoints, gpu_line/vram_WE -> vram_BURSTCNT); everything else >= 0. Hold met, no unconstrained clocks.
+Progress of the clk_2x worst slack: -5.2 (GTE, no multicycle) -> -3.26 -> -2.51 -> -0.02.
+Caveats: A9 placement is looser than the real part; real 5CEBA4F23C8 fit still fails by 13 LABs with the MiSTer scaffolding in; SDC is the probe's, not the Pocket shell's (clock relationships will change).
+gpu_read_late contract: no vram_DOUT_READY in the clk_2x right after a read request.
+Stack: gte_laxer, ps_patches, gpu_divider_pool, gpu_area_reg, gpu_rect_timing, gpu_read_late, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3, c76_sfr_ram, area_profile, c352_tag_ram, drop_guns, no_texfilter.
