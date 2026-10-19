@@ -7,3 +7,7 @@ derive_clock_uncertainty
 set_false_path -from [get_clocks CLK_50M]
 set_false_path -to   [get_clocks CLK_50M]
 set_clock_groups -asynchronous -group [get_clocks {pll|*}] -group [get_clocks {pll2|*}]
+# Laxer GTE engine runs on a half-rate clock enable (same constraint the shipped PS Pocket core uses)
+set gte_state [get_registers {*|PocketGTEEngine:engine|*}]
+set_multicycle_path -from $gte_state -to $gte_state -setup 2
+set_multicycle_path -from $gte_state -to $gte_state -hold 1

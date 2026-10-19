@@ -11,6 +11,7 @@ foreach_in_collection c [get_clocks] {
    set n [get_clock_info -name $c]
    set f [string map {| _ : _ ~ _ [ _ ] _ * _} $n]
    report_timing -setup -from_clock $c -to_clock $c -npaths 8 -detail full_path -file output_files/probe.sta.setup.$f.rpt
+   report_timing -setup -from_clock $c -to_clock $c -npaths 400 -detail summary -file output_files/probe.sta.summary.$f.rpt
 }
 report_timing -setup -npaths 1 -detail full_path -file output_files/probe.sta.worst.rpt
 check_timing -include {no_clock unconstrained_paths} -file output_files/probe.sta.check.rpt
