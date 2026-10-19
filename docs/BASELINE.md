@@ -290,3 +290,18 @@ Stack: gte_laxer, ps_patches, gpu_divider_pool, c76_ram_bram, cpu_execute_share,
 Same stack as the 18,072 result, fitted on the real device: **fitter fails**, "requires 1861 LABs, device has 1848" (13 LABs over). Fitter reports 18,322 / 18,480 ALMs (99%)
 before aborting (tight packing adds ALMs vs the A9 fit's 18,072). So the ~1.1k MiSTer scaffolding (hps_io, sdram, glue) has to go, or ~150-300 ALMs more must be cut, before it fits at all.
 Timing analysis needs a completed fit; running it on the 5CEBA9F23C8 (same C8 grade, looser placement => optimistic) instead.
+
+## Timing check (2026-10-19, run 39264619959, 5CEBA9F23C8 fit + quartus_sta, slow corner)
+Stack as in the 18,072 result (MDEC in, divider pool, no_texfilter), SDC = probe.sdc (50 MHz ref, derived PLL clocks, pll/pll2 async groups, GTE multicycle 2 as in the PS Pocket core).
+Fit: 18,044 ALMs. The A9 part is the same C8 grade but placed far looser than the real part will be, so these numbers are optimistic.
+
+| Clock | Target | Fmax | Worst slack |
+|---|---|---|---|
+| clk_1x | 33.87 MHz | 41.6 MHz | +5.1 ns (CPU decode -> memorymux) |
+| clk_2x | 67.74 MHz | 55.5 MHz | **-3.26 ns** |
+| clk_3x (SDRAM, replaced by the shell) | 101.6 MHz | 120.9 MHz | met |
+
+clk_2x: over 400 failing endpoints, all below -2 ns: gpu_rect yPos/etc (-3.26, 234 endpoints), gpu drawingAreaTop compares (-3.19), gpu_pixelpipeline (-3.04). Hold is met.
+Without the GTE multicycle constraint the Laxer GTE shows -5.2 ns at clk_2x (GuardianSoul's adapter runs it on a half-rate CE, hence the constraint).
+The PS Pocket core closes this domain with GPU timing patches that are not ported yet: gpu_area_reg (registers the drawing-area compares), gpu_coordinates, gpu_payload_timing, gpu_cache_controls, gpu_read_late, gpu_sort_reread (several need gpu_divider_pool, which is now in).
+First check run (39256943618) on the real 5CEBA4F23C8: fitter fails, 1,861 LABs needed vs 1,848 (13 over).
