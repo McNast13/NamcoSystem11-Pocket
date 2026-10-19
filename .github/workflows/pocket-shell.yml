@@ -6,6 +6,12 @@ on:
       project:
         description: "project revision under pocket/project"
         default: "s11"
+      qsf_extra:
+        description: "extra QSF lines appended to the generated s11full.qsf (experiments); use \\n between lines"
+        default: ""
+      label:
+        description: "artifact label"
+        default: ""
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,6 +24,11 @@ jobs:
       - name: Core source tree (full build only)
         if: ${{ inputs.project == 's11full' }}
         run: python3 tools/build_core_tree.py pocket/build/core_tree
+      - name: Extra QSF lines
+        if: ${{ inputs.qsf_extra != '' }}
+        env:
+          QSF_EXTRA: ${{ inputs.qsf_extra }}
+        run: printf '\n%b\n' "$QSF_EXTRA" >> pocket/project/${{ inputs.project }}.qsf
       - name: Compile
         shell: bash
         run: |
@@ -30,7 +41,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: shell-${{ inputs.project }}
+          name: shell-${{ inputs.project }}${{ inputs.label && format('-{0}', inputs.label) || '' }}
           path: |
             pocket/project/output_files/*.rpt
             pocket/project/output_files/*.summary
