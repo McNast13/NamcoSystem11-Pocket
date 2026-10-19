@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""Apply openfpga-PlayStation's gpu_area_reg to the S11 gpu_poly.vhd (registered drawing-area compares of xPos).
+
+The PS script cannot be imported here (it resolves a PSX_MiSTer checkout at import time), so its pure text transform
+(`_replace` + `area_reg_text`) is lifted out of the source file and executed.
+Usage: gpu_area_reg.apply WORKDIR POCKETDIR"""
+import sys
+from pathlib import Path
+
+work, pocket = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
+src = (pocket / "scripts/prepare_gpu_area_reg.py").read_text()
+a = src.index("def _replace")
+b = src.index("def apply_gpu_area_reg")
+ns = {}
+exec(src[a:b], ns)
+
+p = work / "rtl/gpu_poly.vhd"
+p.write_text(ns["area_reg_text"](p.read_text()))
+print("gpu_poly: drawing-area compares registered")

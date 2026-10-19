@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""gpu_rect: split the single-cycle CHECKPOS state into three registered steps.
+
+The Pocket timing check (clk_2x, 67.74 MHz) put the worst paths in gpu_rect: yPos / drawingAreaTop -> drawing-area compare ->
+ydiff -> ysize (+interlace adjust) -> (ysize < 1) -> next-state, all in one cycle (-3.26 ns on the 5CEBA9).
+  CHECKPOS  : xdiff/ydiff against the drawing area + the out-of-area test (on the pre-update rec_posx/yPos, as before)
+  CHECKPOS2 : apply the diffs to posx/size/yPos/u/v (interlace adjust included) and register the size<1 test
+  CHECKPOS3 : same branch as the original, now on two registered flags
+Same results, two extra clocks per rectangle (REPRODUCIBLEGPUTIMING is off in S11)."""
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1]).resolve() / "rtl/gpu_rect.vhd"
+t = p.read_text()
+
+def sub(old, new):
+    global t
+    assert t.count(old) == 1, old[:70]
+    t = t.replace(old, new)
+
+sub("      CHECKPOS,\n", "      CHECKPOS,\n      CHECKPOS2,\n      CHECKPOS3,\n")
+sub("   signal firstPixel          : std_logic;\n",
+    "   signal firstPixel          : std_logic;\n"
+    "   signal c_xdiff             : signed(11 downto 0) := (others => '0');\n"
+    "   signal c_ydiff             : signed(11 downto 0) := (others => '0');\n"
+    "   signal c_oob               : std_logic := '0';\n"
+    "   signal c_small             : std_logic := '0';\n")
+
+a = t.index("               when CHECKPOS =>")
+b = t.index("               when REQUESTFIRST =>")
+old = t[a:b]
+# the original decision branch (kept verbatim, only its condition changes)
+i = old.index("                  if (xsize < 1 or ysize < 1")
+branch = old[i:]
+branch = branch.replace("if (xsize < 1 or ysize < 1 or rec_posx > to_integer(drawingAreaRight) or yPos > to_integer(drawingAreaBottom)) then",
+                        "if (c_small = '1' or c_oob = '1') then")
+assert "c_small" in branch
+timing = old[old.index("                  if (rec_transparency = '1' or rec_texture = '1') then"):old.index("                  xsize := to_signed")]
+
+new = ("               when CHECKPOS =>\n" + timing + """                  xdiff := (others => '0');
+                  if (rec_posx < to_integer(drawingAreaLeft)) then
+                     xdiff := to_signed(to_integer(drawingAreaLeft), 12) - rec_posx;
+                  end if;
+                  ydiff := (others => '0');
+                  if (to_integer(yPos) < to_integer(drawingAreaTop)) then
+                     ydiff := to_signed(to_integer(drawingAreaTop), 12) - yPos;
+                  end if;
+                  c_xdiff <= xdiff;
+                  c_ydiff <= ydiff;
+                  if (rec_posx > to_integer(drawingAreaRight) or yPos > to_integer(drawingAreaBottom)) then
+                     c_oob <= '1';
+                  else
+                     c_oob <= '0';
+                  end if;
+                  state <= CHECKPOS2;
+
+               when CHECKPOS2 =>
+                  xsize := to_signed(to_integer(rec_sizex), 12) - c_xdiff;
+                  rec_posx  <= rec_posx + c_xdiff;
+                  xPos      <= rec_posx + c_xdiff;
+                  uWork     <= uWork + unsigned(c_xdiff(7 downto 0));
+                  rec_u     <= rec_u + unsigned(c_xdiff(7 downto 0));
+                  rec_sizex <= unsigned(xsize(9 downto 0));
+
+                  ysize := to_signed(to_integer(rec_sizey), 12) - c_ydiff;
+                  ydiff := c_ydiff;
+                  ynew := yPos + ydiff;
+                  if (interlacedDrawing = '1' and (activeLineLSB = ynew(0))) then
+                     ydiff := ydiff + 1;
+                     ysize := ysize - 1;
+                  end if;
+                  yPos      <= yPos + ydiff;
+                  vWork     <= vWork + unsigned(ydiff(7 downto 0));
+                  rec_sizey <= unsigned(ysize(9 downto 0));
+                  if (xsize < 1 or ysize < 1) then
+                     c_small <= '1';
+                  else
+                     c_small <= '0';
+                  end if;
+                  state <= CHECKPOS3;
+
+               when CHECKPOS3 =>
+""" + branch)
+t = t[:a] + new + t[b:]
+p.write_text(t)
+print("gpu_rect: CHECKPOS split in three")
