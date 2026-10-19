@@ -231,8 +231,6 @@ module core_top (
            cram0_ce0_n = 1, cram0_ce1_n = 1, cram0_oe_n = 1, cram0_we_n = 1, cram0_ub_n = 1, cram0_lb_n = 1;
     assign cram1_a = 0, cram1_dq = 16'bz, cram1_clk = 0, cram1_adv_n = 1, cram1_cre = 0,
            cram1_ce0_n = 1, cram1_ce1_n = 1, cram1_oe_n = 1, cram1_we_n = 1, cram1_ub_n = 1, cram1_lb_n = 1;
-    assign dram_a = 0, dram_ba = 0, dram_dq = 16'bz, dram_dqm = 0, dram_clk = 0, dram_cke = 0,
-           dram_ras_n = 1, dram_cas_n = 1, dram_we_n = 1;
     assign sram_a = 0, sram_dq = 16'bz, sram_oe_n = 1, sram_we_n = 1, sram_ub_n = 1, sram_lb_n = 1;
     assign dbg_tx = 1, aux_scl = 0, aux_sda = 1'bz, vpll_feed = 0;
     assign user1 = sink;    // keeps the placeholder loader/command logic alive in the skeleton fit
@@ -277,12 +275,12 @@ module core_top (
         .clk(clk_74a), .reset_n(reset_n),
         .bridge_endian_little(bridge_endian_little), .bridge_addr(bridge_addr), .bridge_rd(bridge_rd),
         .bridge_rd_data(cmd_bridge_rd_data), .bridge_wr(bridge_wr), .bridge_wr_data(bridge_wr_data),
-        .status_boot_done(1'b1), .status_setup_done(1'b1), .status_running(reset_n),
+        .status_boot_done(pll_locked_74), .status_setup_done(pll_locked_74), .status_running(reset_n),
         .dataslot_requestread(dataslot_requestread), .dataslot_requestread_id(dataslot_requestread_id),
         .dataslot_requestread_ack(1'b1), .dataslot_requestread_ok(1'b1),
         .dataslot_requestwrite(dataslot_requestwrite), .dataslot_requestwrite_id(dataslot_requestwrite_id),
         .dataslot_requestwrite_size(dataslot_requestwrite_size),
-        .dataslot_requestwrite_ack(1'b1), .dataslot_requestwrite_ok(1'b1),    // TODO: ack once the SDRAM controller is ready
+        .dataslot_requestwrite_ack(mem_ready_74), .dataslot_requestwrite_ok(1'b1),
         .dataslot_update(dataslot_update), .dataslot_update_id(dataslot_update_id), .dataslot_update_size(dataslot_update_size),
         .dataslot_allcomplete(dataslot_allcomplete),
         .rtc_epoch_seconds(rtc_epoch_seconds), .rtc_date_bcd(rtc_date_bcd), .rtc_time_bcd(rtc_time_bcd), .rtc_valid(rtc_valid),
@@ -299,10 +297,25 @@ module core_top (
         .datatable_addr(datatable_addr), .datatable_wren(datatable_wren), .datatable_data(datatable_data), .datatable_q(datatable_q)
     );
 
+    // ---- core clocks: 33.8688 / 67.7376 / 101.6064 MHz from the 74.25 MHz reference ----
+    wire clk1x, clk2x, clk3x, pll_locked;
+    s11_pll pll (.clk_74a(clk_74a), .rst(1'b0), .clk1x(clk1x), .clk2x(clk2x), .clk3x(clk3x), .locked(pll_locked));
+    reg [1:0] lock_s74 = 2'b00;
+    reg [17:0] sdram_wait = 18'd0;                    // ~3.5 ms after lock: the controller powers the chip up (200 us) and sets the mode register
+    reg        mem_ready_74 = 1'b0;
+    always @(posedge clk_74a) begin
+        lock_s74 <= {lock_s74[0], pll_locked};
+        if (!lock_s74[1]) begin sdram_wait <= 18'd0; mem_ready_74 <= 1'b0; end
+        else if (!(&sdram_wait)) sdram_wait <= sdram_wait + 1'b1;
+        else mem_ready_74 <= 1'b1;
+    end
+    wire pll_locked_74 = lock_s74[1];
+    reg [1:0] unlock_s1x = 2'b11;                     // PLL not locked, synchronised to clk1x: holds the memory/loader in reset
+    always @(posedge clk1x or negedge pll_locked) if (!pll_locked) unlock_s1x <= 2'b11; else unlock_s1x <= {unlock_s1x[0], 1'b0};
+    wire init1x = unlock_s1x[1];
+
     // ---- data-slot loader (bridge writes -> System 11 ROM/BIOS/EEPROM/config destinations) ----
-    // Placeholder wiring: clocked from clk_74a with an always-ready sink until the Pocket SDRAM controller and the
-    // core clock domain exist. The sink folds every output into one pin so synthesis keeps (and measures) the loader.
-    wire        ld_mem_valid, ld_c76_wr, ld_ee_wr, ld_cfg_gun, ld_busy, ld_overflow;
+    wire        ld_mem_valid, ld_mem_ready, ld_c76_wr, ld_ee_wr, ld_cfg_gun, ld_busy, ld_overflow;
     wire [26:0] ld_mem_addr;
     wire [31:0] ld_mem_data, ld_ee_data;
     wire [13:0] ld_c76_addr;
@@ -310,16 +323,34 @@ module core_top (
     wire [9:0]  ld_ee_addr;
     s11_loader loader (
         .clk_74a(clk_74a), .bridge_wr(bridge_wr), .bridge_addr(bridge_addr), .bridge_wr_data(bridge_wr_data),
-        .clk(clk_74a), .rst(1'b0),
-        .mem_valid(ld_mem_valid), .mem_addr(ld_mem_addr), .mem_data(ld_mem_data), .mem_ready(1'b1),
+        .clk(clk1x), .rst(init1x),
+        .mem_valid(ld_mem_valid), .mem_addr(ld_mem_addr), .mem_data(ld_mem_data), .mem_ready(ld_mem_ready),
         .c76_wr(ld_c76_wr), .c76_addr(ld_c76_addr), .c76_data(ld_c76_data),
         .ee_wr(ld_ee_wr), .ee_addr(ld_ee_addr), .ee_data(ld_ee_data),
         .cfg_platform(ld_cfg_platform), .cfg_keycus(ld_cfg_keycus), .cfg_gun(ld_cfg_gun),
         .ld_busy(ld_busy), .ld_overflow(ld_overflow)
     );
+
+    // ---- main memory: Pocket SDRAM through the MiSTer-contract controller; the core's RAM ports are not connected yet ----
+    wire [31:0] ram_ch1_dout32;
+    wire        ram_ch1_ready;
+    s11_ram ram (
+        .clk1x(clk1x), .clk3x(clk3x), .init(init1x),
+        .ld_valid(ld_mem_valid), .ld_addr(ld_mem_addr), .ld_data(ld_mem_data), .ld_ready(ld_mem_ready), .ld_active(ld_busy),
+        .refreshForce(1'b0), .ram_idle(),
+        .ch1_addr(27'b0), .ch1_dout(), .ch1_dout32(ram_ch1_dout32), .ch1_req(1'b0), .ch1_dma(1'b0), .ch1_cntDMA(2'b0),
+        .ch1_cache(1'b0), .ch1_ready(ram_ch1_ready), .cache_wr(), .cache_data(), .cache_addr(),
+        .dma_wr(), .dma_reqprocessed(), .dma_data(),
+        .ch2_addr(27'b0), .ch2_dout(), .ch2_din(32'b0), .ch2_req(1'b0), .ch2_be(4'b0), .ch2_ready(),
+        .ext_ch3_addr(27'b0), .ext_ch3_din(32'b0), .ext_ch3_req(1'b0), .ext_ch3_rnw(1'b0), .ext_ch3_be(4'b0),
+        .ch3_dout(), .ext_ch3_ready(),
+        .dmafifo_adr(27'b0), .dmafifo_data(32'b0), .dmafifo_empty(1'b1), .dmafifo_read(),
+        .dram_dq(dram_dq), .dram_a(dram_a), .dram_dqm(dram_dqm), .dram_ba(dram_ba),
+        .dram_we_n(dram_we_n), .dram_ras_n(dram_ras_n), .dram_cas_n(dram_cas_n), .dram_cke(dram_cke), .dram_clk(dram_clk)
+    );
     reg  sink = 1'b0;
-    always @(posedge clk_74a)
-        sink <= ^{ld_mem_valid, ld_mem_addr, ld_mem_data, ld_c76_wr, ld_c76_addr, ld_c76_data, ld_ee_wr, ld_ee_addr, ld_ee_data,
+    always @(posedge clk1x)
+        sink <= ^{ram_ch1_dout32, ram_ch1_ready, ld_mem_valid, ld_mem_addr, ld_mem_data, ld_c76_wr, ld_c76_addr, ld_c76_data, ld_ee_wr, ld_ee_addr, ld_ee_data,
                   ld_cfg_platform, ld_cfg_keycus, ld_cfg_gun, ld_busy, ld_overflow, datatable_q, dataslot_allcomplete,
                   target_dataslot_ack, target_dataslot_done, target_dataslot_err, dataslot_requestread, dataslot_requestwrite,
                   rtc_valid, savestate_start, savestate_load, osnotify_inmenu, rtc_epoch_seconds, rtc_date_bcd, rtc_time_bcd};

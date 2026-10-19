@@ -1,0 +1,3 @@
+psx_sdram_ctrl.sv is copied unchanged from github.com/GuardianSoul/openfpga-PlayStation (rtl/memory/psx_sdram_ctrl.sv),
+SPDX-License-Identifier: MIT, Copyright (c) 2026 PSX Pocket contributors. It is a drop-in for MiSTer's sdram.sv ports and
+is simulated there against a strict SDR chip model (sim/memory/tb_psx_sdram_ctrl.sv).
