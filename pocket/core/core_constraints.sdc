@@ -20,6 +20,14 @@ if {[get_collection_size $gte_state] > 0} {
 # Adapted from openfpga-PlayStation scripts/pocket_native_sdram_io.tcl. Board flight 0..0.5 ns per leg is an assumption,
 # not a measurement. The controller forwards inverted clk3x on dram_clk from a DDR output cell; DQ is captured in
 # dq_in[*] (I/O cell registers) and the reviewed CL3 capture consumes the previous beat (setup multicycle 2, no hold relaxation).
+# diagnostics: what the register collections actually contain at SDC-read time
+foreach pat {{*dq_in*} {*psx_sdram_ctrl*dq_in*} {*|dq_in[*]} {*dq_in[*]}} {
+    set c [get_registers -nowarn $pat]
+    set n [get_collection_size $c]
+    set first ""
+    foreach_in_collection r $c { if {$first == ""} { set first [get_node_info -name $r] } }
+    post_message -type info "S11_SDC_DBG get_registers $pat -> $n first=$first"
+}
 set sdram_clk3x [get_clocks {ic|pll|pll|general[2]*divclk}]
 set sdram_caps  [get_registers {*|psx_sdram_ctrl:controller|dq_in[*]}]
 set sdram_in    [get_ports {dram_dq[*]}]
