@@ -711,7 +711,7 @@ set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -
 set_global_assignment -name PRE_FLOW_SCRIPT_FILE "quartus_sh:../platform/pocket/build_id_gen.tcl"
 set_global_assignment -name POST_FLOW_SCRIPT_FILE "quartus_sh:../platform/pocket/build_cdf.tcl"
 set_global_assignment -name QIP_FILE ../platform/pocket/apf.qip
-set_global_assignment -name QIP_FILE [expr {[info exists s11_core_qip] ? $s11_core_qip : "../core/core.qip"}]
+set_global_assignment -name QIP_FILE ../core/core.qip
 
 
 

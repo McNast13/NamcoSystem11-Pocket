@@ -61,6 +61,15 @@ def main():
         'set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) SYSTEM11.sv]\n')
     print("wrote", out / "core_tree.qip")
 
+    # the full-core project revision: the shell project with the full core instead of the skeleton
+    proj = ROOT / "pocket/project"
+    q = (proj / "s11.qsf").read_text()
+    assert q.count("QIP_FILE ../core/core.qip") == 1
+    q = q.replace("QIP_FILE ../core/core.qip", "QIP_FILE ../core/core_full.qip")
+    q += '\nset_global_assignment -name VERILOG_MACRO "MISTER_FB=1"\nset_global_assignment -name VHDL_INPUT_VERSION VHDL_2008\n'
+    (proj / "s11full.qsf").write_text(q)
+    print("wrote", proj / "s11full.qsf")
+
 
 if __name__ == "__main__":
     main()

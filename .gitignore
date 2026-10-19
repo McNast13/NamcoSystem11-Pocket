@@ -4,3 +4,4 @@ build/
 *.rbf
 *.rbf_r
 pocket/build/
+pocket/project/s11full.qsf
