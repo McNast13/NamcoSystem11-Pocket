@@ -3,7 +3,14 @@
 Port of [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) (itself derived from
 [PSX_MiSTer](https://github.com/MiSTer-devel/PSX_MiSTer)) to the Analogue Pocket.
 
-**Status:** planning. **First goal:** playable Tekken 2 (TES2-VER.D).
+**Status:** experimental, **not yet run on hardware**. The full core plus Pocket shell compiles and fits the Pocket's FPGA
+(5CEBA4F23C8, about 99% of its ALMs, MDEC/FMVs included); see [docs/SHELL.md](docs/SHELL.md) for the architecture and
+[docs/BASELINE.md](docs/BASELINE.md) for the measurements. **First goal:** playable Tekken 2 (TES3 VER.D / TES2 VER.D).
+
+Build and package (GitHub Actions does this, `pocket-shell.yml` with `project=s11full`): `tools/build_core_tree.py` assembles the
+source tree, Quartus compiles `pocket/project/s11full`, `tools/package_pocket.py` makes the SD-card tree, and
+`tools/rom_packer.py GAME.mra --roms DIR --out DIR --instance NAME` turns your own MAME ROM zips into the data-slot files and
+the instance JSON. No ROMs are included or distributed.
 
 See [docs/PLAN.md](docs/PLAN.md). Licensed GPL (upstream sources are GPL-2.0/3.0; see LICENSE and upstream notices).
 
