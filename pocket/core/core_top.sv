@@ -234,8 +234,95 @@ module core_top (
     assign dram_a = 0, dram_ba = 0, dram_dq = 16'bz, dram_dqm = 0, dram_clk = 0, dram_cke = 0,
            dram_ras_n = 1, dram_cas_n = 1, dram_we_n = 1;
     assign sram_a = 0, sram_dq = 16'bz, sram_oe_n = 1, sram_we_n = 1, sram_ub_n = 1, sram_lb_n = 1;
-    assign dbg_tx = 1, user1 = 0, aux_scl = 0, aux_sda = 1'bz, vpll_feed = 0;
-    assign bridge_endian_little = 0, bridge_rd_data = 0;
+    assign dbg_tx = 1, aux_scl = 0, aux_sda = 1'bz, vpll_feed = 0;
+    assign user1 = sink;    // keeps the placeholder loader/command logic alive in the skeleton fit
+    // ---- APF host/target command handler (Analogue core_bridge_cmd, mapped at bridge 0xF8xxxxxx) ----
+    wire        reset_n;
+    wire [31:0] cmd_bridge_rd_data;
+    assign bridge_endian_little = 1'b1;     // data-slot words arrive little-endian: byte 0 of the file = bits [7:0]
+    reg  [31:0] bridge_rd_mux;
+    always @(*) begin
+        casex (bridge_addr)
+            32'hF8xxxxxx: bridge_rd_mux = cmd_bridge_rd_data;
+            default:      bridge_rd_mux = 32'h0;
+        endcase
+    end
+    assign bridge_rd_data = bridge_rd_mux;
+
+    wire        dataslot_requestread, dataslot_requestwrite, dataslot_update, dataslot_allcomplete;
+    wire [15:0] dataslot_requestread_id, dataslot_requestwrite_id, dataslot_update_id;
+    wire [31:0] dataslot_requestwrite_size, dataslot_update_size;
+    wire [31:0] rtc_epoch_seconds, rtc_date_bcd, rtc_time_bcd;
+    wire        rtc_valid, savestate_start, savestate_load, osnotify_inmenu;
+    wire        target_dataslot_ack, target_dataslot_done;
+    wire [2:0]  target_dataslot_err;
+
+    // data table (slot id * 2 + 1 holds the size of the file loaded into the slot)
+    reg  [9:0]  datatable_addr = 0;
+    reg         datatable_wren = 0;
+    reg  [31:0] datatable_data = 0;
+    wire [31:0] datatable_q;
+    reg         prev_dataslot_update = 0;
+    always @(posedge clk_74a) begin
+        prev_dataslot_update <= dataslot_update;
+        datatable_wren <= 0;
+        if (dataslot_update && ~prev_dataslot_update) begin
+            datatable_addr <= dataslot_update_id[9:0] * 10'h2 + 10'h1;
+            datatable_data <= dataslot_update_size;
+            datatable_wren <= 1;
+        end
+    end
+
+    core_bridge_cmd icb (
+        .clk(clk_74a), .reset_n(reset_n),
+        .bridge_endian_little(bridge_endian_little), .bridge_addr(bridge_addr), .bridge_rd(bridge_rd),
+        .bridge_rd_data(cmd_bridge_rd_data), .bridge_wr(bridge_wr), .bridge_wr_data(bridge_wr_data),
+        .status_boot_done(1'b1), .status_setup_done(1'b1), .status_running(reset_n),
+        .dataslot_requestread(dataslot_requestread), .dataslot_requestread_id(dataslot_requestread_id),
+        .dataslot_requestread_ack(1'b1), .dataslot_requestread_ok(1'b1),
+        .dataslot_requestwrite(dataslot_requestwrite), .dataslot_requestwrite_id(dataslot_requestwrite_id),
+        .dataslot_requestwrite_size(dataslot_requestwrite_size),
+        .dataslot_requestwrite_ack(1'b1), .dataslot_requestwrite_ok(1'b1),    // TODO: ack once the SDRAM controller is ready
+        .dataslot_update(dataslot_update), .dataslot_update_id(dataslot_update_id), .dataslot_update_size(dataslot_update_size),
+        .dataslot_allcomplete(dataslot_allcomplete),
+        .rtc_epoch_seconds(rtc_epoch_seconds), .rtc_date_bcd(rtc_date_bcd), .rtc_time_bcd(rtc_time_bcd), .rtc_valid(rtc_valid),
+        .savestate_supported(1'b0), .savestate_addr(32'h0), .savestate_size(32'h0), .savestate_maxloadsize(32'h0),
+        .savestate_start(savestate_start), .savestate_start_ack(1'b0), .savestate_start_busy(1'b0),
+        .savestate_start_ok(1'b0), .savestate_start_err(1'b0),
+        .savestate_load(savestate_load), .savestate_load_ack(1'b0), .savestate_load_busy(1'b0),
+        .savestate_load_ok(1'b0), .savestate_load_err(1'b0),
+        .osnotify_inmenu(osnotify_inmenu),
+        .target_dataslot_read(1'b0), .target_dataslot_write(1'b0), .target_dataslot_getfile(1'b0), .target_dataslot_openfile(1'b0),
+        .target_dataslot_ack(target_dataslot_ack), .target_dataslot_done(target_dataslot_done), .target_dataslot_err(target_dataslot_err),
+        .target_dataslot_id(16'h0), .target_dataslot_slotoffset(32'h0), .target_dataslot_bridgeaddr(32'h0), .target_dataslot_length(32'h0),
+        .target_buffer_param_struct(32'h0), .target_buffer_resp_struct(32'h0),
+        .datatable_addr(datatable_addr), .datatable_wren(datatable_wren), .datatable_data(datatable_data), .datatable_q(datatable_q)
+    );
+
+    // ---- data-slot loader (bridge writes -> System 11 ROM/BIOS/EEPROM/config destinations) ----
+    // Placeholder wiring: clocked from clk_74a with an always-ready sink until the Pocket SDRAM controller and the
+    // core clock domain exist. The sink folds every output into one pin so synthesis keeps (and measures) the loader.
+    wire        ld_mem_valid, ld_c76_wr, ld_ee_wr, ld_cfg_gun, ld_busy, ld_overflow;
+    wire [26:0] ld_mem_addr;
+    wire [31:0] ld_mem_data, ld_ee_data;
+    wire [13:0] ld_c76_addr;
+    wire [7:0]  ld_c76_data, ld_cfg_platform, ld_cfg_keycus;
+    wire [9:0]  ld_ee_addr;
+    s11_loader loader (
+        .clk_74a(clk_74a), .bridge_wr(bridge_wr), .bridge_addr(bridge_addr), .bridge_wr_data(bridge_wr_data),
+        .clk(clk_74a), .rst(1'b0),
+        .mem_valid(ld_mem_valid), .mem_addr(ld_mem_addr), .mem_data(ld_mem_data), .mem_ready(1'b1),
+        .c76_wr(ld_c76_wr), .c76_addr(ld_c76_addr), .c76_data(ld_c76_data),
+        .ee_wr(ld_ee_wr), .ee_addr(ld_ee_addr), .ee_data(ld_ee_data),
+        .cfg_platform(ld_cfg_platform), .cfg_keycus(ld_cfg_keycus), .cfg_gun(ld_cfg_gun),
+        .ld_busy(ld_busy), .ld_overflow(ld_overflow)
+    );
+    reg  sink = 1'b0;
+    always @(posedge clk_74a)
+        sink <= ^{ld_mem_valid, ld_mem_addr, ld_mem_data, ld_c76_wr, ld_c76_addr, ld_c76_data, ld_ee_wr, ld_ee_addr, ld_ee_data,
+                  ld_cfg_platform, ld_cfg_keycus, ld_cfg_gun, ld_busy, ld_overflow, datatable_q, dataslot_allcomplete,
+                  target_dataslot_ack, target_dataslot_done, target_dataslot_err, dataslot_requestread, dataslot_requestwrite,
+                  rtc_valid, savestate_start, savestate_load, osnotify_inmenu, rtc_epoch_seconds, rtc_date_bcd, rtc_time_bcd};
     assign audio_mclk = 0, audio_dac = 0, audio_lrck = 0;
     assign video_rgb = 0, video_rgb_clock = clk_74a, video_rgb_clock_90 = clk_74a,
            video_de = 0, video_skip = 0, video_vs = 0, video_hs = 0;
