@@ -9,6 +9,7 @@ foreach_in_collection c [get_clocks] {
     report_timing -setup -to_clock $c -npaths 12 -detail full_path -file output_files/paths.setup.$f.rpt
     report_timing -setup -to_clock $c -npaths 300 -detail summary -file output_files/paths.summary.$f.rpt
     report_timing -recovery -to_clock $c -npaths 6 -detail full_path -file output_files/paths.recovery.$f.rpt
+    report_timing -hold -to_clock $c -npaths 6 -detail full_path -file output_files/paths.hold.$f.rpt
     report_timing -removal -to_clock $c -npaths 3 -detail full_path -file output_files/paths.removal.$f.rpt
 }
 report_clocks -file output_files/paths.clocks.rpt
