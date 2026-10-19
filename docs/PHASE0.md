@@ -20,7 +20,7 @@ Tekken 2's KEYCUS is C406 (platform byte 0x14, type 0x01).
 
 ## Memory layout in the MiSTer core (from the MRA)
 SDRAM: program @0x400000, banked data (16 MB window) @0x800000, C76 prog @0x1800000, wave @0x1840000 (+4 MB) => ~28 MB of ROM.
-The Pocket's SDRAM is ~32 MB, so ROMs fit but nearly fill it; main RAM / VRAM must live in PSRAM/SRAM (as the PS port does).
+The Pocket has a 64 MiB SDRAM and two PSRAMs (32 MiB total) per MIRLO64's documentation (corrected 2026-10-19; this note originally said ~32 MB), so the MiSTer layout (top at 0x2C40000) fits.
 
 ## Toolchain finding
 Quartus Prime Lite has **no macOS build**. This machine (Apple Silicon) has iverilog and verilator but not ghdl or Quartus.

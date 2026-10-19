@@ -1,0 +1,22 @@
+{
+  "core": {
+    "magic": "APF_VER_1",
+    "metadata": {
+      "platform_ids": ["namco_system11"],
+      "shortname": "Namco System 11",
+      "description": "Namco System 11 arcade (experimental)",
+      "author": "McNast13",
+      "url": "https://github.com/McNast13/NamcoSystem11-Pocket",
+      "version": "0.0.1",
+      "date_release": "2026-10-19"
+    },
+    "framework": {
+      "target_product": "Analogue Pocket",
+      "version_required": "1.1",
+      "sleep_supported": false,
+      "dock": { "supported": true, "analog_output": false },
+      "hardware": { "link_port": false, "cartridge_adapter": 0 }
+    },
+    "cores": [ { "name": "default", "id": 0, "filename": "s11.rev" } ]
+  }
+}

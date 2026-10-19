@@ -10,8 +10,12 @@ Mirrors the loader semantics of Main_MiSTer support/arcade/mra_loader.cpp (rom_d
   * <nvram> is ignored (runtime save data).
 CRC32 of every named part is checked against the MRA.
 
-Usage: rom_packer.py GAME.mra --roms DIR --out DIR
+Usage: rom_packer.py GAME.mra --roms DIR --out DIR [--instance NAME]
 Writes rom_<index>.bin per <rom index=...> and manifest.json (index, file, size, crc32).
+The config image (index 1) is padded to a whole 32-bit word: the Pocket bridge delivers whole words, so
+byte 0 = platform id, byte 1 = KEYCUS type, bit 16 = light-gun flag (zero-padded).
+--instance NAME also writes NAME.json, an APF instance file naming each image as the data slot of the same index
+(see pocket/dist/.../data.json and pocket/core/s11_loader.v for the slot map).
 """
 import argparse, json, os, sys, zipfile, zlib
 import xml.etree.ElementTree as ET
@@ -131,6 +135,7 @@ def main():
     ap.add_argument("mra")
     ap.add_argument("--roms", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--instance", help="also write an APF instance JSON with this name (no extension)")
     a = ap.parse_args()
     try:
         images = pack(a.mra, a.roms)
@@ -139,6 +144,8 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     manifest = []
     for i, d in sorted(images.items()):
+        if i == 1 and len(d) % 4:
+            d = d + b"\x00" * (4 - len(d) % 4)
         fn = f"rom_{i}.bin"
         with open(os.path.join(a.out, fn), "wb") as f:
             f.write(d)
@@ -146,6 +153,12 @@ def main():
         print(f"index {i}: {fn} {len(d)} bytes crc {zlib.crc32(d):08x}")
     with open(os.path.join(a.out, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2)
+    if a.instance:
+        inst = {"instance": {"magic": "APF_VER_1", "data_path": a.instance + "/",
+                             "data_slots": [{"id": m["index"], "filename": m["file"]} for m in manifest]}}
+        with open(os.path.join(a.out, a.instance + ".json"), "w") as f:
+            json.dump(inst, f, indent=2)
+        print(f"instance: {a.instance}.json ({len(manifest)} slots)")
 
 
 if __name__ == "__main__":
