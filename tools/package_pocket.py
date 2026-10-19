@@ -3,9 +3,9 @@
 
   package_pocket.py --rbf output_files/s11full.rbf --out OUTDIR [--packed DIR --instance NAME]
 
-Writes OUTDIR/Cores/McNast13.NamcoSystem11/{core.json,data.json,video.json,audio.json,input.json,interact.json,s11.rev},
+Writes OUTDIR/Cores/McNast13.NamcoSystem11/{core.json,data.json,video.json,audio.json,input.json,interact.json,bitstream.rbf_r},
 OUTDIR/Platforms/namco_system11.json and, with --packed (rom_packer.py output made with --instance NAME), the game into
-OUTDIR/Assets/namco_system11/common/NAME.json plus NAME/rom_*.bin. The .rev is the .rbf with the bits of every byte reversed (APF requirement).
+OUTDIR/Assets/namco_system11/common/NAME.json plus NAME/rom_*.bin. bitstream.rbf_r is the .rbf with the bits of every byte reversed (APF requirement, same naming as the Dragon 32 core).
 Copy OUTDIR onto the Pocket's SD card. ROM images are the user's own; nothing here ships them.
 """
 import argparse, json, shutil
@@ -26,12 +26,18 @@ def main():
 
     core = a.out / "Cores/McNast13.NamcoSystem11"
     core.mkdir(parents=True, exist_ok=True)
-    for f in CORE_DIR.glob("*.json"):
-        shutil.copy(f, core / f.name)
-    (core / "s11.rev").write_bytes(a.rbf.read_bytes().translate(REV))
-
     plat = a.out / "Platforms"
     plat.mkdir(parents=True, exist_ok=True)
+    for f in CORE_DIR.glob("*.json"):
+        shutil.copy(f, core / f.name)
+    (core / "bitstream.rbf_r").write_bytes(a.rbf.read_bytes().translate(REV))
+    # placeholder artwork: icon 36x36 and platform picture 521x165, RGB565 little-endian, solid colour
+    def solid(w, h, rgb565):
+        return rgb565.to_bytes(2, "little") * (w * h)
+    (core / "icon.bin").write_bytes(solid(36, 36, 0xC0A0))
+    (a.out / "Platforms/_images").mkdir(parents=True, exist_ok=True)
+    (a.out / "Platforms/_images/namco_system11.bin").write_bytes(solid(521, 165, 0x2104))
+
     (plat / "namco_system11.json").write_text(json.dumps(
         {"platform": {"category": "Arcade", "name": "Namco System 11", "manufacturer": "Namco", "year": 1994}}, indent=2) + "\n")
 
