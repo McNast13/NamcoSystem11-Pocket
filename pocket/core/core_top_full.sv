@@ -486,13 +486,23 @@ module core_top (
         .rgb_in(diag_vid ? dg_rgb : {vid_r, vid_g, vid_b}),
         .hs(apf_hs), .vs(apf_vs), .de(apf_de), .skip(apf_skip), .rgb(apf_rgb)
     );
+    // The APF's DDIO output registers capture rgb/de/hs/vs/skip on the rising edge of video_rgb_clock. Launching from that same edge is a
+    // same-edge race that one Dragon 32 build hit (blank/flickering picture, fit dependent); retime the outputs onto the falling edge.
+    reg [23:0] o_rgb = 24'd0; reg o_de = 1'b0, o_skip = 1'b0, o_hs = 1'b0, o_vs = 1'b0;
+    always @(negedge clk_vid) begin o_rgb <= apf_rgb; o_de <= apf_de; o_skip <= apf_skip; o_hs <= apf_hs; o_vs <= apf_vs; end
     assign video_rgb_clock = clk_vid, video_rgb_clock_90 = clk_vid90;
-    assign video_rgb = apf_rgb, video_de = apf_de, video_skip = apf_skip, video_hs = apf_hs, video_vs = apf_vs;
+    assign video_rgb = o_rgb, video_de = o_de, video_skip = o_skip, video_hs = o_hs, video_vs = o_vs;
 
-    // ---- audio ----
+    // ---- audio (in diagnostic mode a 1 kHz square tone proves the clocks, the audio PLL and the I2S path independently of the core) ----
+    wire diag_vid_1x = settings[3];
+    reg [14:0] tone_cnt = 0; reg signed [15:0] tone = 16'sh2000;
+    always @(posedge clk1x) begin
+        if (tone_cnt == 15'd16933) begin tone_cnt <= 0; tone <= -tone; end else tone_cnt <= tone_cnt + 1'b1;
+    end
+
     s11_audio audio (
         .clk_74b(clk_74b), .clk(clk1x), .reset(core_reset),
-        .in_l($signed(aud_l)), .in_r($signed(aud_r)),
+        .in_l(diag_vid_1x ? tone : $signed(aud_l)), .in_r(diag_vid_1x ? tone : $signed(aud_r)),
         .audio_mclk(audio_mclk), .audio_lrck(audio_lrck), .audio_dac(audio_dac)
     );
 endmodule
