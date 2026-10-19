@@ -279,3 +279,9 @@ The GPU pixel pipeline built four texture taps (tag RAM, texel cache, CLUT RAM +
 gpu_poly is the only driver of pipeline_filter, so tying it low lets synthesis prune three taps. Original System 11 hardware has no texture filtering, so this loses nothing authentic.
 area_aggr (OPTIMIZATION_MODE AGGRESSIVE AREA etc.) gave 18,940 vs 18,901: no gain, not adopted.
 Stack: gte_laxer, ps_patches, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3, c76_sfr_ram, area_profile, no_mdec, c352_tag_ram, drop_guns, no_texfilter.
+
+## MDEC restored + gpu_divider_pool (2026-10-19, runs 39246138200 and 39248848354, 5CEBA9F23C8 fit)
+- MDEC back in (no_mdec removed), no pool: **18,409 ALMs** (mdec 605 ALMs, 8 DSP).
+- MDEC in + gpu_divider_pool: **18,072 ALMs** (18,586 regs, 45 DSP, 202 RAM blocks). Pool saved 337 (six dividers -> one shared serial divider).
+  Upstream marks the pool experimental (setup latency per polygon, pixel equivalence unverified) - first hardware thing to suspect if polygons glitch.
+Stack: gte_laxer, ps_patches, gpu_divider_pool, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3, c76_sfr_ram, area_profile, c352_tag_ram, drop_guns, no_texfilter. Includes ~1.1k MiSTer scaffolding.
