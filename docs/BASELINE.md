@@ -285,3 +285,8 @@ Stack: gte_laxer, ps_patches, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3
 - MDEC in + gpu_divider_pool: **18,072 ALMs** (18,586 regs, 45 DSP, 202 RAM blocks). Pool saved 337 (six dividers -> one shared serial divider).
   Upstream marks the pool experimental (setup latency per polygon, pixel equivalence unverified) - first hardware thing to suspect if polygons glitch.
 Stack: gte_laxer, ps_patches, gpu_divider_pool, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3, c76_sfr_ram, area_profile, c352_tag_ram, drop_guns, no_texfilter. Includes ~1.1k MiSTer scaffolding.
+
+## Real Pocket-part fit (2026-10-19, run 39256943618, 5CEBA4F23C8) - FAILED on LABs
+Same stack as the 18,072 result, fitted on the real device: **fitter fails**, "requires 1861 LABs, device has 1848" (13 LABs over). Fitter reports 18,322 / 18,480 ALMs (99%)
+before aborting (tight packing adds ALMs vs the A9 fit's 18,072). So the ~1.1k MiSTer scaffolding (hps_io, sdram, glue) has to go, or ~150-300 ALMs more must be cut, before it fits at all.
+Timing analysis needs a completed fit; running it on the 5CEBA9F23C8 (same C8 grade, looser placement => optimistic) instead.
