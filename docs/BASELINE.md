@@ -266,3 +266,9 @@ Working stack + no_mdec + c352_tag_ram: **19,003 ALMs** (18,571 regs, 53 DSP, 1.
 the rest of the drop is MDEC (and its 8 DSPs). Hierarchy: c76_sound 4,327, psx_top 13,330 (cpu 2,366, gte 1,964, m37702 1,827, gpu ~6.5k, memorymux 833, dma 872, zn1_io 570),
 MiSTer scaffolding still present: hps_io 238 + sdram 348 + top-level glue ~760.
 c352_tag_ram checked with the dual-DUT nvc bench (tests/c352/run.sh): 0-1 transient sample differences in 300-600 samples at ROM latency 3/10/20/40, same final output.
+
+## drop_guns (2026-10-19, run 39240485239, 5CEBA9F23C8 fit)
+Stack + drop_guns: **18,901 ALMs** (18,646 regs, 49 DSP). Only -102 vs 19,003 (fit noise is about +-150: psx_top moved +150 while the top-level glue fell ~230).
+Placed: c76_sound 4,318 (c352 2,113, m37702 ~1.8k, c76 wrapper ~318), psx_top 13,483, hps_io 222, sdram 345, top-level glue ~534.
+Core without MiSTer scaffolding (hps_io + sdram + glue ~1.1k) is ~17.8k; the Pocket shell then adds its own loader/memory controller/video/audio/input.
+Stack: gte_laxer, ps_patches, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3, c76_sfr_ram, area_profile, no_mdec, c352_tag_ram, drop_guns.
