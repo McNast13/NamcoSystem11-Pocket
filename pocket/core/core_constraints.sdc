@@ -16,7 +16,7 @@ set_clock_groups -asynchronous \
 # not a measurement. The controller forwards inverted clk3x on dram_clk from a DDR output cell; DQ is captured in
 # dq_in[*] (I/O cell registers) and the reviewed CL3 capture consumes the previous beat (setup multicycle 2, no hold relaxation).
 set sdram_clk3x [get_clocks {ic|pll|pll|general[2]*divclk}]
-set sdram_caps  [get_registers {*|ram|controller|dq_in[*]}]
+set sdram_caps  [get_registers {*|psx_sdram_ctrl:controller|dq_in[*]}]
 set sdram_in    [get_ports {dram_dq[*]}]
 set sdram_out   [get_ports {dram_a[*] dram_ba[*] dram_dqm[*] dram_dq[*] dram_we_n dram_ras_n dram_cas_n dram_cke}]
 if {[get_collection_size $sdram_clk3x] == 1 && [get_collection_size $sdram_caps] == 16 &&
@@ -32,7 +32,7 @@ if {[get_collection_size $sdram_clk3x] == 1 && [get_collection_size $sdram_caps]
     set_output_delay -clock sdram_chip_clk -max [expr {2.0 + $sdram_board_max - $sdram_board_min}]  $sdram_out
     set_output_delay -clock sdram_chip_clk -min [expr {-1.0 + $sdram_board_min - $sdram_board_max}] $sdram_out
     set_multicycle_path -setup 2 -from $sdram_in -to $sdram_caps
-    puts "S11_SDRAM_IO constraints applied"
+    post_message -type info "S11_SDRAM_IO constraints applied"
 } else {
-    puts "S11_SDRAM_IO WARNING: pin/register collections not as expected, SDRAM pin constraints NOT applied"
+    post_message -type warning "S11_SDRAM_IO: collections clk=[get_collection_size $sdram_clk3x] caps=[get_collection_size $sdram_caps] in=[get_collection_size $sdram_in] out=[get_collection_size $sdram_out] (want 1/16/16/37), SDRAM pin constraints NOT applied"
 }
