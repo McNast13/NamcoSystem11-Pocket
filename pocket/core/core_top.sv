@@ -227,10 +227,6 @@ module core_top (
     assign cart_tran_pin31 = 1'bz, cart_tran_pin31_dir = 0;
     assign port_tran_si = 1'bz, port_tran_si_dir = 0, port_tran_so = 1'bz, port_tran_so_dir = 0;
     assign port_tran_sck = 1'bz, port_tran_sck_dir = 0, port_tran_sd = 1'bz, port_tran_sd_dir = 0;
-    assign cram0_a = 0, cram0_dq = 16'bz, cram0_clk = 0, cram0_adv_n = 1, cram0_cre = 0,
-           cram0_ce0_n = 1, cram0_ce1_n = 1, cram0_oe_n = 1, cram0_we_n = 1, cram0_ub_n = 1, cram0_lb_n = 1;
-    assign cram1_a = 0, cram1_dq = 16'bz, cram1_clk = 0, cram1_adv_n = 1, cram1_cre = 0,
-           cram1_ce0_n = 1, cram1_ce1_n = 1, cram1_oe_n = 1, cram1_we_n = 1, cram1_ub_n = 1, cram1_lb_n = 1;
     assign sram_a = 0, sram_dq = 16'bz, sram_oe_n = 1, sram_we_n = 1, sram_ub_n = 1, sram_lb_n = 1;
     assign dbg_tx = 1, aux_scl = 0, aux_sda = 1'bz, vpll_feed = 0;
     assign user1 = sink;    // keeps the placeholder loader/command logic alive in the skeleton fit
@@ -348,9 +344,27 @@ module core_top (
         .dram_dq(dram_dq), .dram_a(dram_a), .dram_dqm(dram_dqm), .dram_ba(dram_ba),
         .dram_we_n(dram_we_n), .dram_ras_n(dram_ras_n), .dram_cas_n(dram_cas_n), .dram_cke(dram_cke), .dram_clk(dram_clk)
     );
+
+    // ---- GPU VRAM on the two PSRAMs; the GPU's DDRAM_* port is not connected yet ----
+    reg [2:0] unlock_s2x = 3'b111;
+    always @(posedge clk2x or negedge pll_locked) if (!pll_locked) unlock_s2x <= 3'b111; else unlock_s2x <= {unlock_s2x[1:0], 1'b0};
+    wire        vr_busy, vr_ready;
+    wire [63:0] vr_dout;
+    s11_vram vram (
+        .clk2x(clk2x), .reset(unlock_s2x[2]), .park(~reset_n),
+        .ddr_busy(vr_busy), .ddr_burstcnt(8'd0), .ddr_addr(25'd0), .ddr_dout(vr_dout), .ddr_dout_ready(vr_ready),
+        .ddr_rd(1'b0), .ddr_din(64'd0), .ddr_be(8'd0), .ddr_we(1'b0),
+        .cram0_a(cram0_a), .cram0_dq(cram0_dq), .cram0_clk(cram0_clk), .cram0_adv_n(cram0_adv_n), .cram0_cre(cram0_cre),
+        .cram0_ce0_n(cram0_ce0_n), .cram0_ce1_n(cram0_ce1_n), .cram0_oe_n(cram0_oe_n), .cram0_we_n(cram0_we_n),
+        .cram0_ub_n(cram0_ub_n), .cram0_lb_n(cram0_lb_n),
+        .cram1_a(cram1_a), .cram1_dq(cram1_dq), .cram1_clk(cram1_clk), .cram1_adv_n(cram1_adv_n), .cram1_cre(cram1_cre),
+        .cram1_ce0_n(cram1_ce0_n), .cram1_ce1_n(cram1_ce1_n), .cram1_oe_n(cram1_oe_n), .cram1_we_n(cram1_we_n),
+        .cram1_ub_n(cram1_ub_n), .cram1_lb_n(cram1_lb_n)
+    );
+
     reg  sink = 1'b0;
     always @(posedge clk1x)
-        sink <= ^{ram_ch1_dout32, ram_ch1_ready, ld_mem_valid, ld_mem_addr, ld_mem_data, ld_c76_wr, ld_c76_addr, ld_c76_data, ld_ee_wr, ld_ee_addr, ld_ee_data,
+        sink <= ^{vr_busy, vr_ready, vr_dout, ram_ch1_dout32, ram_ch1_ready, ld_mem_valid, ld_mem_addr, ld_mem_data, ld_c76_wr, ld_c76_addr, ld_c76_data, ld_ee_wr, ld_ee_addr, ld_ee_data,
                   ld_cfg_platform, ld_cfg_keycus, ld_cfg_gun, ld_busy, ld_overflow, datatable_q, dataslot_allcomplete,
                   target_dataslot_ack, target_dataslot_done, target_dataslot_err, dataslot_requestread, dataslot_requestwrite,
                   rtc_valid, savestate_start, savestate_load, osnotify_inmenu, rtc_epoch_seconds, rtc_date_bcd, rtc_time_bcd};

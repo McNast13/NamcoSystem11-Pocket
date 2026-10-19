@@ -754,3 +754,16 @@ set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to cram1_lb_n
 set_global_assignment -name AUTO_DELAY_CHAINS ON
 set_instance_assignment -name ALLOW_SYNCH_CTRL_USAGE OFF -to "core_top:ic|s11_ram:ram|psx_sdram_ctrl:controller|dq_oe"
 set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to "dram_dq[*]"
+
+# PSRAM: pin outputs are registers; duplicate into each IOE (psx_vram_psram header)
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to "cram*_a[*]"
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to "cram*_dq[*]"
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to "cram*_dq[*]"
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to "cram*_adv_n"
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to "cram*_ce0_n"
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to "cram*_ce1_n"
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to "cram*_oe_n"
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to "cram*_we_n"
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to "cram*_ub_n"
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to "cram*_lb_n"
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to "cram*_cre"

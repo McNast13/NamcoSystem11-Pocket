@@ -5,3 +5,5 @@ set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "s11_ram.sv"]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "memory/psx_sdram_ctrl.sv"]
 set_global_assignment -name SDC_FILE [file join $::quartus(qip_path) "core_constraints.sdc"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "s11_vram.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "memory/psx_vram_psram.sv"]
