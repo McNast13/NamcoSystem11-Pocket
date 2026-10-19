@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""Adapt SYSTEM11.sv (the MiSTer `emu` top) to the Analogue Pocket by replacing the MiSTer framework blocks with a port-level
+side channel, leaving the rest of the file (psx_mister, c76_sound, the sprog/wave/RAM-clear logic, video chain) untouched:
+
+  * pll / pll2 / pll_cfg   -> clocks and lock come in on PK_* ports from the Pocket PLL (core_top)
+  * hps_io                 -> ioctl download stream, joystick words, analog sticks and `status` come in on PK_* ports
+  * everything else (sdram, DDRAM_*, video, audio, SDRAM pins) keeps its MiSTer port names; core_top wires them to the Pocket
+    memories, video scaler and I2S.
+Usage: pocket_emu.apply WORKDIR"""
+import re, sys
+from pathlib import Path
+
+p = Path(sys.argv[1]).resolve() / "SYSTEM11.sv"
+t = p.read_text()
+
+def sub(old, new, count=1):
+    global t
+    assert t.count(old) == count, (t.count(old), old[:80])
+    t = t.replace(old, new)
+
+def cut(start_pat, end_pat, new):
+    """Replace the text from the first match of start_pat through the first end_pat after it."""
+    global t
+    m = re.search(start_pat, t, re.S)
+    assert m, start_pat
+    e = re.compile(end_pat, re.S).search(t, m.end())
+    assert e, end_pat
+    t = t[:m.start()] + new + t[e.end():]
+
+# 1. extra ports
+sub("\tinput         OSD_STATUS\n);",
+"""\tinput         OSD_STATUS,
+
+\t// ---- Analogue Pocket side channel (pocket/core/emu/pocket_emu.apply) ----
+\tinput         PK_CLK1X,
+\tinput         PK_CLK2X,
+\tinput         PK_CLK3X,
+\tinput         PK_CLKVID,
+\tinput         PK_LOCKED,
+\tinput         PK_IOCTL_DL,
+\tinput         PK_IOCTL_WR,
+\tinput   [7:0] PK_IOCTL_INDEX,
+\tinput  [26:0] PK_IOCTL_ADDR,
+\tinput  [15:0] PK_IOCTL_DOUT,
+\toutput        PK_IOCTL_WAIT,
+\tinput  [19:0] PK_JOY0, PK_JOY1, PK_JOY2, PK_JOY3,
+\tinput  [15:0] PK_ANALOG_L0, PK_ANALOG_L1, PK_ANALOG_L2, PK_ANALOG_L3,
+\tinput  [15:0] PK_ANALOG_R0, PK_ANALOG_R1, PK_ANALOG_R2, PK_ANALOG_R3,
+\tinput [127:0] PK_STATUS,
+\toutput        PK_VID_CE, PK_VID_HS, PK_VID_VS, PK_VID_HBL, PK_VID_VBL, PK_VID_ILACE,
+\toutput  [7:0] PK_VID_R, PK_VID_G, PK_VID_B
+);""")
+
+# 2. clocks
+cut(r"\npll pll\n\(", r"\n\);\n", "\nassign clk_1x = PK_CLK1X;\nassign clk_2x = PK_CLK2X;\nassign clk_3x = PK_CLK3X;\nassign clk_3x_ps = PK_CLK3X;\nassign pll_locked = PK_LOCKED;\n")
+cut(r"\npll2 pll2\n\(", r"\n\);\n", "\nassign clk_vid = PK_CLKVID;\n")
+cut(r"\npll_cfg pll_cfg\n\(", r"\n\);\n", "\nassign cfg_waitrequest = 1'b0;\nassign reconfig_to_pll = 64'd0;\n")
+
+# 3. hps_io -> assigns
+cut(r"\nhps_io #\(.CONF_STR\(CONF_STR\)[^\n]*\n\(", r"\n\);\n", """
+assign buttons = 2'b00;
+assign forced_scandoubler = 1'b0;
+assign joy_unmod = PK_JOY0;
+assign joy2 = PK_JOY1;
+assign joy3 = PK_JOY2;
+assign joy4 = PK_JOY3;
+assign ps2_key = 11'd0;
+assign status = PK_STATUS;
+assign ioctl_download = PK_IOCTL_DL;
+assign ioctl_wr = PK_IOCTL_WR;
+assign ioctl_index = PK_IOCTL_INDEX;
+assign ioctl_addr = PK_IOCTL_ADDR;
+assign ioctl_dout = PK_IOCTL_DOUT;
+assign PK_IOCTL_WAIT = ioctl_wait;
+assign ioctl_upload = 1'b0;
+assign sd_ack = 4'd0;
+assign sd_buff_addr = 9'd0;
+assign sd_buff_dout = 16'd0;
+assign sd_buff_wr = 1'b0;
+assign img_mounted = 4'd0;
+assign img_readonly = 1'b0;
+assign img_size = 64'd0;
+assign sdram_sz = 16'd0;
+assign joystick_analog_l0 = PK_ANALOG_L0;
+assign joystick_analog_l1 = PK_ANALOG_L1;
+assign joystick_analog_l2 = PK_ANALOG_L2;
+assign joystick_analog_l3 = PK_ANALOG_L3;
+assign joystick_analog_r0 = PK_ANALOG_R0;
+assign joystick_analog_r1 = PK_ANALOG_R1;
+assign joystick_analog_r2 = PK_ANALOG_R2;
+assign joystick_analog_r3 = PK_ANALOG_R3;
+assign paddle_0 = 8'd128;
+assign mouse = 25'd0;
+assign RTC_time = 33'd0;
+assign DIRECT_VIDEO = 1'b0;
+""")
+# 4. raw PSX video (before the MiSTer aspect/gamma chain) for the APF scaler formatter
+m = list(re.finditer(r"\nendmodule\b", t))
+assert len(m) == 1, len(m)
+t = t[:m[0].start()] + """
+assign PK_VID_CE = ce_pix;
+assign PK_VID_HS = hs;
+assign PK_VID_VS = vs;
+assign PK_VID_HBL = hbl;
+assign PK_VID_VBL = vbl;
+assign PK_VID_ILACE = video_interlace;
+assign PK_VID_R = r;
+assign PK_VID_G = g;
+assign PK_VID_B = b;
+""" + t[m[0].start():]
+p.write_text(t)
+print("SYSTEM11.sv: PLLs and hps_io replaced by PK_* ports")

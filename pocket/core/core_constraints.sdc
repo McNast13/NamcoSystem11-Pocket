@@ -1,15 +1,20 @@
-# Core constraints (loaded with the APF ones through core.qip)
-# The PLL's three outputs (33.87 / 67.74 / 101.61 MHz) are phase aligned and timed against each other. They are
-# asynchronous to the Pocket's 74.25 MHz clocks and the bridge SPI clock; every crossing is a gray-code FIFO or a
-# 2-flop synchroniser (s11_loader FIFO, lock/reset synchronisers in core_top).
-set core_clocks [get_clocks {ic|pll|pll|*}]
-set_clock_groups -asynchronous \
-    -group { bridge_spiclk } \
-    -group { clk_74a } \
-    -group { clk_74b } \
-    -group $core_clocks
-# TODO: SDRAM pin timing (input delay/skew of dram_dq, output delay of dram_*) - see openfpga-PlayStation
-# scripts/prepare_native_sdram_io.py; the controller registers DQ in the I/O cell but the constraints are not applied yet.
+# Core constraints (loaded with the APF ones through core.qip / core_full.qip)
+# PLL outputs: general[0..2] = 33.87 / 67.74 / 101.61 MHz (phase aligned, timed against each other); general[3..4] = 53.69 MHz video
+# clock and its 90 degree copy (full build only). All are asynchronous to the Pocket's 74.25 MHz clocks and the bridge SPI clock;
+# every crossing is a gray-code FIFO or a 2-flop synchroniser (s11_ioctl_bridge / s11_loader FIFO, lock/reset/pad synchronisers).
+set core_clocks [get_clocks -nowarn {ic|pll|pll|general[0]* ic|pll|pll|general[1]* ic|pll|pll|general[2]*}]
+set vid_clocks  [get_clocks -nowarn {ic|pll|pll|general[3]* ic|pll|pll|general[4]*}]
+if {[get_collection_size $vid_clocks] > 0} {
+    set_clock_groups -asynchronous -group { bridge_spiclk } -group { clk_74a } -group { clk_74b } -group $core_clocks -group $vid_clocks
+} else {
+    set_clock_groups -asynchronous -group { bridge_spiclk } -group { clk_74a } -group { clk_74b } -group $core_clocks
+}
+# The Laxer GTE engine runs on a half-rate clock enable (the shipped PS Pocket core uses the same constraint)
+set gte_state [get_registers -nowarn {*|PocketGTEEngine:engine|*}]
+if {[get_collection_size $gte_state] > 0} {
+    set_multicycle_path -from $gte_state -to $gte_state -setup 2
+    set_multicycle_path -from $gte_state -to $gte_state -hold 1
+}
 
 # ---- SDRAM pin timing (AS4C32M16MSA-6, CAS latency 3 at 101.6 MHz) ----
 # Adapted from openfpga-PlayStation scripts/pocket_native_sdram_io.tcl. Board flight 0..0.5 ns per leg is an assumption,

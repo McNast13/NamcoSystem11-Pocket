@@ -12,8 +12,12 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+      - run: git submodule update --init --depth 1 references/SYSTEM11_MiSTer references/openfpga-PlayStation references/Laxer-PS-GTE references/PSX_MiSTer
       - name: Free disk space
         run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache
+      - name: Core source tree (full build only)
+        if: ${{ inputs.project == 's11full' }}
+        run: python3 tools/build_core_tree.py pocket/build/core_tree
       - name: Compile
         shell: bash
         run: |

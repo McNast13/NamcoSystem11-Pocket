@@ -5,3 +5,6 @@ is simulated there against a strict SDR chip model (sim/memory/tb_psx_sdram_ctrl
 psx_vram_psram.sv is copied unchanged from the same repository (rtl/memory/psx_vram_psram.sv), SPDX-License-Identifier: MIT,
 Copyright (c) 2026 PSX Pocket contributors. It implements the MiSTer PSX core's DDR3 port (GPU VRAM) on the Pocket's two CellularRAM chips;
 the System 11 GPU is the PSX_MiSTer GPU and speaks the same DDRAM_* protocol.
+
+audio/audio.sv, audio/sound_i2s.sv (MIT, Adam Gastineau), audio/mf_audio_pll*: from github.com/tortugaveloz/MIRLO64 target/pocket (Apache-2.0 repository).
+video/psx_apf_video.sv: from openfpga-PlayStation rtl/pocket (MIT).
