@@ -272,3 +272,10 @@ Stack + drop_guns: **18,901 ALMs** (18,646 regs, 49 DSP). Only -102 vs 19,003 (f
 Placed: c76_sound 4,318 (c352 2,113, m37702 ~1.8k, c76 wrapper ~318), psx_top 13,483, hps_io 222, sdram 345, top-level glue ~534.
 Core without MiSTer scaffolding (hps_io + sdram + glue ~1.1k) is ~17.8k; the Pocket shell then adds its own loader/memory controller/video/audio/input.
 Stack: gte_laxer, ps_patches, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3, c76_sfr_ram, area_profile, no_mdec, c352_tag_ram, drop_guns.
+
+## no_texfilter: gate reached (2026-10-19, run 39243414050, 5CEBA9F23C8 fit)
+Stack + no_texfilter: **17,788 ALMs** (18,040 regs, 37 DSP, 187 RAM blocks). -1,113 vs 18,901. gpu 6.5k -> 5.4k, psx_top 13.5k -> 12.3k.
+The GPU pixel pipeline built four texture taps (tag RAM, texel cache, CLUT RAM + shadow, colour multipliers) for the MiSTer bilinear-filter option;
+gpu_poly is the only driver of pipeline_filter, so tying it low lets synthesis prune three taps. Original System 11 hardware has no texture filtering, so this loses nothing authentic.
+area_aggr (OPTIMIZATION_MODE AGGRESSIVE AREA etc.) gave 18,940 vs 18,901: no gain, not adopted.
+Stack: gte_laxer, ps_patches, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3, c76_sfr_ram, area_profile, no_mdec, c352_tag_ram, drop_guns, no_texfilter.
