@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+"""C352: move the wave-cache tag array (wc_tag) and the prefetch-address array (pf_addr) from flip-flops to M10K.
+
+Both are 32 x 22 bit arrays read through 32:1 muxes at arbitrary indices (hit check, snoop, prefetch scan, fill end),
+about 1,400 FFs plus ~8 wide muxes and comparators. Now:
+  * wc_tag -> two M10K copies (wct_a read by vidx for the hit check/snoop, wct_b read by the prefetch scan index);
+    same read timing as the existing wc_data/wc_q path, covered by the existing last-fill bypass (fb_*).
+  * pf_addr -> one M10K with a single write port (snoop has priority; the keyon walker retries on a collision).
+  * the prefetch scan is pipelined: E_IDLE (pick) -> E_PRD (RAM read) -> E_PCMP (compare/issue); a demand miss still
+    preempts at any of those states. The post-fill 'pf_addr(e_dst) = e_tag' check moves to a new E_FIN state.
+wc_valid / pf_want stay flip-flops."""
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1]).resolve() / "rtl/c352.vhd"
+t = p.read_text()
+
+def sub(old, new):
+    global t
+    assert t.count(old) == 1, old
+    t = t.replace(old, new)
+
+sub("   signal wc_tag    : wtag_t := (others => (others => '1'));\n",
+"""   type tagslv_t is array(0 to 31) of std_logic_vector(21 downto 0);
+   signal wct_a, wct_b : tagslv_t := (others => (others => '1'));   -- wc_tag, two read ports (vidx / pf_idx)
+   attribute ramstyle of wct_a, wct_b : signal is "M10K, no_rw_check";
+   signal wct_a_q, wct_b_q : std_logic_vector(21 downto 0) := (others => '1');
+""")
+sub("   signal pf_addr   : ptag_t := (others => (others => '0'));\n",
+"""   signal pfa       : tagslv_t := (others => (others => '0'));    -- pf_addr
+   attribute ramstyle of pfa : signal is "M10K, no_rw_check";
+   signal pfa_q     : std_logic_vector(21 downto 0) := (others => '0');
+   signal pf_we_r   : std_logic := '0';
+   signal pf_widx_r : integer range 0 to 31 := 0;
+   signal pf_wdat_r : std_logic_vector(21 downto 0) := (others => '0');
+   signal pf_idx    : integer range 0 to 31 := 0;                 -- prefetch candidate under test
+   signal pf_ridx   : integer range 0 to 31;
+""")
+sub("type est_t is (E_IDLE, E_WAIT);", "type est_t is (E_IDLE, E_PRD, E_PCMP, E_WAIT, E_FIN);")
+sub("""                    and wc_tag(vidx) = unsigned(fs_addr(23 downto 2))) else '0';""",
+    """                    and unsigned(wct_a_q) = unsigned(fs_addr(23 downto 2))) else '0';""")
+
+sub("""   fetch_adapter : process(clk)
+      variable pfv   : integer range 0 to 31;
+      variable found : boolean;
+      variable ntag  : unsigned(21 downto 0);
+   begin
+      if rising_edge(clk) then
+         fs_ready <= '0';
+         st_d     <= st;
+""",
+"""   pf_ridx <= e_dst when est = E_WAIT else pf_idx;
+
+   tagrams : process(clk)
+   begin
+      if rising_edge(clk) then
+         if wc_we = '1' then
+            wct_a(e_dst) <= std_logic_vector(e_tag);
+            wct_b(e_dst) <= std_logic_vector(e_tag);
+         end if;
+         wct_a_q <= wct_a(vidx);
+         wct_b_q <= wct_b(pf_idx);
+         if pf_we_r = '1' then pfa(pf_widx_r) <= pf_wdat_r; end if;
+         pfa_q <= pfa(pf_ridx);
+      end if;
+   end process;
+
+   fetch_adapter : process(clk)
+      variable pfv     : integer range 0 to 31;
+      variable found   : boolean;
+      variable ntag    : unsigned(21 downto 0);
+      variable demand  : boolean;
+      variable snoop_go : boolean;
+      variable w_en    : std_logic;
+      variable w_idx   : integer range 0 to 31;
+      variable w_dat   : std_logic_vector(21 downto 0);
+   begin
+      if rising_edge(clk) then
+         fs_ready <= '0';
+         st_d     <= st;
+         w_en := '0'; w_idx := 0; w_dat := (others => '0');
+         ntag := cur_pos(23 downto 2);
+         snoop_go := st = S_MINT and st_d = S_FETCH_W and flags(vidx)(FLG_BUSY) = '1'
+                     and not ((wc_valid(vidx) = '1' and unsigned(wct_a_q) = ntag) or
+                              ((est = E_WAIT or est = E_FIN) and e_dst = vidx and e_tag = ntag));
+""")
+
+a = t.index("         -- 2) external fill engine")
+b = t.index("         -- 3) keyon commit")
+t = t[:a] + """         -- 2) external fill engine: a demand miss preempts the prefetch queue
+         demand := fs_rd = '1' and f_hit = '0';
+         case est is
+            when E_IDLE | E_PRD | E_PCMP =>
+               if demand then
+                  e_dst    <= vidx;
+                  e_tag    <= unsigned(fs_addr(23 downto 2));
+                  e_dem    <= '1';
+                  rom_addr <= fs_addr(23 downto 2) & "00";
+                  rom_rd   <= '1';
+                  est      <= E_WAIT;
+               elsif est = E_IDLE then
+                  found := false; pfv := 0;
+                  for i in 0 to 31 loop
+                     if not found and pf_want(i) = '1' then
+                        pfv := i; found := true;
+                     end if;
+                  end loop;
+                  if found then
+                     pf_idx <= pfv;
+                     est    <= E_PRD;
+                  end if;
+               elsif est = E_PRD then
+                  est <= E_PCMP;                 -- wct_b_q / pfa_q settle
+               else
+                  if wc_valid(pf_idx) = '1' and wct_b_q = pfa_q then
+                     pf_want(pf_idx) <= '0';     -- already cached
+                     est <= E_IDLE;
+                  else
+                     e_dst    <= pf_idx;
+                     e_tag    <= unsigned(pfa_q);
+                     e_dem    <= '0';
+                     rom_addr <= pfa_q & "00";
+                     rom_rd   <= '1';
+                     est      <= E_WAIT;
+                  end if;
+               end if;
+            when E_WAIT =>
+               if rom_ready = '1' then
+                  rom_rd          <= '0';
+                  wc_valid(e_dst) <= '1';     -- tags/data written via wc_we
+                  fb_v            <= e_dst;
+                  fb_tag          <= e_tag;
+                  fb_word         <= rom_data;
+                  fb_valid        <= '1';
+                  if e_dem = '1' then
+                     -- the FSM is blocked in S_FETCH_W on exactly this address
+                     fs_data  <= bsel(rom_data, fs_addr(1 downto 0));
+                     fs_ready <= '1';
+                  end if;
+                  est <= E_FIN;
+               end if;
+            when E_FIN =>
+               if unsigned(pfa_q) = e_tag then pf_want(e_dst) <= '0'; end if;
+               est <= E_IDLE;
+         end case;
+
+""" + t[b:]
+
+sub("""            when K_WAITQ =>
+               -- pram_q holds voice kw_v's word during this cycle
+               pf_addr(kw_v)  <= unsigned(pram_q(55 downto 34));
+               pf_want(kw_v)  <= '1';
+               kon_pend(kw_v) <= '0';
+               kwst <= K_IDLE;
+""",
+"""            when K_WAITQ =>
+               -- pram_q holds voice kw_v's word during this cycle
+               if snoop_go then
+                  kwst <= K_IDLE;              -- single pf_addr write port: retry after the snoop
+               else
+                  w_en := '1'; w_idx := kw_v; w_dat := pram_q(55 downto 34);
+                  pf_want(kw_v)  <= '1';
+                  kon_pend(kw_v) <= '0';
+                  kwst <= K_IDLE;
+               end if;
+""")
+
+a = t.index("         if st = S_MINT and st_d = S_FETCH_W then")
+b = t.index("         if reset = '1' then", a)
+t = t[:a] + """         if snoop_go then
+            w_en := '1'; w_idx := vidx; w_dat := std_logic_vector(ntag);
+            pf_want(vidx) <= '1';
+         end if;
+
+         pf_we_r   <= w_en;
+         pf_widx_r <= w_idx;
+         pf_wdat_r <= w_dat;
+
+""" + t[b:]
+p.write_text(t)
+print("c352: wc_tag/pf_addr -> M10K")
