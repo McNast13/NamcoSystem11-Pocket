@@ -6,4 +6,4 @@ derive_clock_uncertainty
 # management-clock config logic and the video PLL domain are asynchronous to the core domain
 set_false_path -from [get_clocks CLK_50M]
 set_false_path -to   [get_clocks CLK_50M]
-set_clock_groups -asynchronous -group [get_clocks {emu|pll|*}] -group [get_clocks {emu|pll2|*}]
+set_clock_groups -asynchronous -group [get_clocks {pll|*}] -group [get_clocks {pll2|*}]
