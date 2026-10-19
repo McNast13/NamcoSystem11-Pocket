@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+"""GPU: permanently disable the bilinear texture-filter enhancement (MiSTer OSD option, not original hardware).
+
+gpu_pixelpipeline builds four texture taps (tag RAM, texel cache, CLUT RAM + shadow, colour multipliers each) for
+the 4-point filter. gpu_poly is the only driver of pipeline_filter; tie it low so stage*_filter fold to constants and the
+three extra taps (whose outputs are only consumed on the filter path) are pruned by synthesis."""
+import re, sys
+from pathlib import Path
+
+p = Path(sys.argv[1]).resolve() / "rtl/gpu_poly.vhd"
+t = p.read_text()
+t, n = re.subn(r"pipeline_filter(\s*)<=(\s*)'1';", r"pipeline_filter\1<=\2'0';", t)
+assert n == 1, n
+p.write_text(t)
+print("gpu_poly: pipeline_filter tied low")
