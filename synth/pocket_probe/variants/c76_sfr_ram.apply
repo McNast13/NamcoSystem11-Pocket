@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""C76 wrapper: move the generic 128 B SFR readback store out of flip-flops.
+
+sfr_mem is a 128 x 8 register file read through a combinational 128:1 mux (~1k FFs + mux + write decode). Only
+about ten SFR addresses are consumed by the wrapper itself (A-D control, timer start/reload, interrupt priorities);
+everything else is pure write-then-read-back storage. Keep sfr_mem for those, serve the rest from a registered-read
+M10K (same 1-cycle timing and read-after-write bypass as the internal RAM; int_ready already waits one cycle).
+Unread sfr_mem entries are then pruned by synthesis."""
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1]).resolve() / "rtl/c76.vhd"
+t = p.read_text()
+
+def sub(old, new):
+    global t
+    assert t.count(old) == 1, old
+    t = t.replace(old, new)
+
+# SFR addresses the wrapper reads directly out of sfr_mem (everything else is storage only)
+SPECIAL = [0x1E, 0x40, 0x70, 0x77, 0x78, 0x7A, 0x7B, 0x7D, 0x7E, 0x7F]
+
+sub("   signal sfr_q       : std_logic_vector(7 downto 0);\n",
+"""   signal sfr_q       : std_logic_vector(7 downto 0);
+
+   -- generic SFR storage (write/readback only), M10K with registered read
+   impure function sfrg_init return sfr_t is
+      variable s : sfr_t := (others => x"00");
+   begin
+      s(16#0E#) := x"1E";
+      return s;
+   end function;
+   signal sfr_gen      : sfr_t := sfrg_init;
+   attribute ramstyle : string;
+   attribute ramstyle of sfr_gen : signal is "M10K, no_rw_check";
+   signal sfr_gen_q    : std_logic_vector(7 downto 0) := (others => '0');
+   signal sfr_gen_bp   : std_logic_vector(7 downto 0);
+   signal sg_wr_d      : std_logic := '0';
+   signal sg_waddr_d   : unsigned(6 downto 0) := (others => '0');
+   signal sg_raddr_d   : unsigned(6 downto 0) := (others => '0');
+   signal sg_wdata_d   : std_logic_vector(7 downto 0) := (others => '0');
+""")
+
+sub("""               sfr_mem(to_integer(unsigned(cpu_addr(6 downto 0)))) <= cpu_dout;
+""",
+"""               sfr_mem(to_integer(unsigned(cpu_addr(6 downto 0)))) <= cpu_dout;
+               sfr_gen(to_integer(unsigned(cpu_addr(6 downto 0)))) <= cpu_dout;
+""")
+
+sub("""            ram_raddr_d <= ram_idx;
+""",
+"""            ram_raddr_d <= ram_idx;
+            sfr_gen_q  <= sfr_gen(to_integer(unsigned(cpu_addr(6 downto 0))));
+            sg_wr_d    <= sel_sfr and cpu_wr;
+            sg_waddr_d <= unsigned(cpu_addr(6 downto 0));
+            sg_raddr_d <= unsigned(cpu_addr(6 downto 0));
+            sg_wdata_d <= cpu_dout;
+""")
+
+chain = "".join(
+    f"              else sfr_mem(16#{a:02X}#) when (unsigned(cpu_addr(7 downto 0)) = x\"{a:02X}\")\n" for a in SPECIAL)
+sub("              else sfr_mem(sfr_idx);\n",
+    chain + "              else sfr_gen_bp;\n"
+    "   sfr_gen_bp <= sg_wdata_d when (sg_wr_d = '1' and sg_waddr_d = sg_raddr_d) else sfr_gen_q;\n")
+p.write_text(t)
+print("c76: generic SFR readback moved to M10K; direct regs:", " ".join(f"{a:02X}" for a in SPECIAL))
