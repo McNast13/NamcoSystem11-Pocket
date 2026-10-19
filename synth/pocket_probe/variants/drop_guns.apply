@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""Drop the light-gun pointer and on-screen crosshair logic from SYSTEM11.sv (Point Blank only; Tekken 2 never reads them).
+
+Pins both virtual pointers at screen centre so px_f/py_f/p2x_f/p2y_f, the gun multipliers, the measured-active-area
+counters and the crosshair overlay are all constant-folded away."""
+import re, sys
+from pathlib import Path
+
+p = Path(sys.argv[1]).resolve() / "SYSTEM11.sv"
+t = p.read_text()
+
+def sub(old, new):
+    global t
+    assert t.count(old) == 1, old
+    t = t.replace(old, new)
+
+sub("wire  [9:0] gun_px = px_f[13:4];", "wire  [9:0] gun_px = 10'd512;")
+sub("wire  [7:0] gun_py = py_f[11:4];", "wire  [7:0] gun_py = 8'd128;")
+sub("wire  [9:0] gun2_px = p2x_f[13:4];", "wire  [9:0] gun2_px = 10'd512;")
+sub("wire  [7:0] gun2_py = p2y_f[11:4];", "wire  [7:0] gun2_py = 8'd128;")
+for name in ("xhair", "xhair2"):
+    t, n = re.subn(r"wire\s+%s\s*=.*?;" % name, "wire        %s = 1'b0;" % name, t, count=1, flags=re.S)
+    assert n == 1, name
+p.write_text(t)
+print("SYSTEM11.sv: gun pointers pinned, crosshair removed")

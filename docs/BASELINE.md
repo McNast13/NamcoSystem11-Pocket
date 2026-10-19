@@ -260,3 +260,9 @@ Stack above + cpu_regs_mlab + area_profile: **20,516 ALMs** (61 DSP). cpu local 
 absorbed most of the FF shadow regfile. Not worth the hardware risk (the 2026-06 MiSTer note claims MLAB reads failed) - NOT in the stack.
 area_profile carries most of the 756 ALM drop (gpu 6,724 -> 6,492, gte 2,116 -> 1,991, memorymux 970 -> 834, dma 991 -> 914).
 Working stack: gte_laxer, ps_patches, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3, c76_sfr_ram, area_profile (~20.55k ALMs; ~3.1k above the 17.4k target).
+
+## no_mdec + c352_tag_ram (2026-10-19, run 39237880241, 5CEBA9F23C8 fit)
+Working stack + no_mdec + c352_tag_ram: **19,003 ALMs** (18,571 regs, 53 DSP, 1.29 Mbit). c352 2,789 -> 2,106 ALMs (-683: wc_tag/pf_addr in M10K);
+the rest of the drop is MDEC (and its 8 DSPs). Hierarchy: c76_sound 4,327, psx_top 13,330 (cpu 2,366, gte 1,964, m37702 1,827, gpu ~6.5k, memorymux 833, dma 872, zn1_io 570),
+MiSTer scaffolding still present: hps_io 238 + sdram 348 + top-level glue ~760.
+c352_tag_ram checked with the dual-DUT nvc bench (tests/c352/run.sh): 0-1 transient sample differences in 300-600 samples at ROM latency 3/10/20/40, same final output.
