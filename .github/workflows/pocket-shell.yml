@@ -34,6 +34,9 @@ jobs:
         run: |
           docker run --rm -v "$PWD/pocket:/pocket" -w /pocket/project raetro/quartus:pocket \
             sh -c "quartus_sh --flow compile ${{ inputs.project }}; quartus_sta -t report_paths.tcl ${{ inputs.project }}" | tee build.log || true
+      - name: Package (SD card tree without ROMs)
+        if: ${{ always() && inputs.project == 's11full' && hashFiles('pocket/project/output_files/s11full.rbf') != '' }}
+        run: python3 tools/package_pocket.py --rbf pocket/project/output_files/s11full.rbf --out pocket/package
       - name: Summary
         if: always()
         run: |
@@ -48,3 +51,9 @@ jobs:
             pocket/project/output_files/*.summary
             pocket/project/output_files/*.smsg
             build.log
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && inputs.project == 's11full' }}
+        with:
+          name: pocket-package${{ inputs.label && format('-{0}', inputs.label) || '' }}
+          path: pocket/package
+          if-no-files-found: ignore
