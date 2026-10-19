@@ -254,3 +254,9 @@ Stack gte_laxer, ps_patches, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3,
 60 DSP, 1.35 Mbit. The C76 wrapper's local logic fell 751 -> 402 ALMs (generic SFR readback store in M10K; ten wrapper-consumed SFRs stay in FFs).
 Not simulated. Placed: c76_sound 5,058 (m37702 1,756, c352 2,824, wrapper 402), psx 14,834 (gpu 6,724, cpu 2,484, gte 2,116, memorymux 970, dma 991, mdec 600),
 hps_io 240, sdram 367.
+
+## cpu_regs_mlab: no meaningful gain (2026-10-19, run 39233349846)
+Stack above + cpu_regs_mlab + area_profile: **20,516 ALMs** (61 DSP). cpu local logic 2,109 -> 2,034 (-75) only; Quartus had already
+absorbed most of the FF shadow regfile. Not worth the hardware risk (the 2026-06 MiSTer note claims MLAB reads failed) - NOT in the stack.
+area_profile carries most of the 756 ALM drop (gpu 6,724 -> 6,492, gte 2,116 -> 1,991, memorymux 970 -> 834, dma 991 -> 914).
+Working stack: gte_laxer, ps_patches, c76_ram_bram, cpu_execute_share, drop_scaffold 1-3, c76_sfr_ram, area_profile (~20.55k ALMs; ~3.1k above the 17.4k target).
