@@ -338,3 +338,14 @@ After the area-first fitter settings (above), seed sweep + path reports (pocket-
 - The audio PLL clocks were missing from the SDC clock groups (recovery -88 ns on the dcfifo clear); fixed. With that, seed 44 shows SDRAM capture hold -0.16..-0.22 ns
   (clk_3x, slow and fast models; the CL3 capture uses setup multicycle 2 with next-beat hold left as a real check), seed 22 clk_2x setup -0.07 (85C) / -0.42 (0C), seed 66 does not fit.
 - Next: D1_DELAY taps on dram_dq (the PS Pocket recipe's physical fix for next-beat hold) and a seed sweep.
+
+## Seed sweep with hold optimisation (2026-10-19, runs 39318119076/128803/138326/148815)
+OPTIMIZE_HOLD_TIMING "ALL PATHS" + OPTIMIZE_MULTI_CORNER_TIMING ON added; D1_DELAY on dram_dq (taps 4, 6, 8) changed nothing (seeds 44/22 give identical numbers).
+All fit at 18,23x-18,29x ALMs; none is clean across all four timing models yet:
+| Seed | ALMs | Worst failing check |
+|---|---|---|
+| 44 | 18,289 | hold -0.22 ns (clk_1x -> clk_3x handoff, ramdownload_wraddr -> ch3_adr_q, skew 0.52 > data delay 0.41); every setup check met (slow 85C) |
+| 22 | 18,261 | clk_2x setup -0.42 (0C), -0.07 (85C): psx_vram_psram busy -> gpu vram_BURSTCNT |
+| 7 | 18,231 | clk_2x setup -0.27, hold -0.12 |
+| 99 | 18,266 | clk_3x setup -0.16 (85C), hold -0.04 |
+Static-config false path and audio clock group are in; recovery/removal are clean.
