@@ -1,0 +1,44 @@
+{
+  "interact": {
+    "magic": "APF_VER_1",
+    "variables": [
+      {
+        "name": "DIP1 Test",
+        "id": 1,
+        "type": "check",
+        "enabled": true,
+        "persist": true,
+        "writeonly": true,
+        "address": "0x50000000",
+        "defaultval": 0,
+        "value": 1,
+        "value_off": 0
+      },
+      {
+        "name": "DIP2 Freeze",
+        "id": 2,
+        "type": "check",
+        "enabled": true,
+        "persist": true,
+        "writeonly": true,
+        "address": "0x50000004",
+        "defaultval": 0,
+        "value": 1,
+        "value_off": 0
+      },
+      {
+        "name": "Service button (held)",
+        "id": 3,
+        "type": "check",
+        "enabled": true,
+        "persist": true,
+        "writeonly": true,
+        "address": "0x50000008",
+        "defaultval": 0,
+        "value": 1,
+        "value_off": 0
+      }
+    ],
+    "messages": []
+  }
+}

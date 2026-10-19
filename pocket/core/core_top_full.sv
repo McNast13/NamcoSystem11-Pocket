@@ -352,6 +352,17 @@ module core_top (
         map_stick = {s[15:8] ^ 8'h80, s[7:0] ^ 8'h80};
     endfunction
 
+    // ---- Core settings (interact.json): DIP1 Test, DIP2 Freeze, held Service button ----
+    reg [2:0] settings74 = 3'b000;
+    always @(posedge clk_74a) if (bridge_wr) begin
+        if (bridge_addr == 32'h50000000) settings74[0] <= bridge_wr_data[0];
+        if (bridge_addr == 32'h50000004) settings74[1] <= bridge_wr_data[0];
+        if (bridge_addr == 32'h50000008) settings74[2] <= bridge_wr_data[0];
+    end
+    wire [2:0] settings;
+    synch_3 #(.WIDTH(3)) s_set (settings74, settings, clk1x);
+    wire [19:0] joy_svc = {6'b0, settings[2], 13'b0};     // joy[13] = Service
+
     // ---- the core ----
     wire        vid_ce, vid_hs, vid_vs, vid_hbl, vid_vbl, vid_ilace;
     wire [7:0]  vid_r, vid_g, vid_b;
@@ -379,12 +390,12 @@ module core_top (
         .PK_CLK1X(clk1x), .PK_CLK2X(clk2x), .PK_CLK3X(clk3x), .PK_CLKVID(clk_vid), .PK_LOCKED(pll_locked),
         .PK_IOCTL_DL(ioctl_dl), .PK_IOCTL_WR(ioctl_wr), .PK_IOCTL_INDEX(ioctl_index), .PK_IOCTL_ADDR(ioctl_addr),
         .PK_IOCTL_DOUT(ioctl_dout), .PK_IOCTL_WAIT(ioctl_wait),
-        .PK_JOY0(map_joy(k1_s)), .PK_JOY1(map_joy(k2_s)), .PK_JOY2(map_joy(k3_s)), .PK_JOY3(map_joy(k4_s)),
+        .PK_JOY0(map_joy(k1_s) | joy_svc), .PK_JOY1(map_joy(k2_s)), .PK_JOY2(map_joy(k3_s)), .PK_JOY3(map_joy(k4_s)),
         .PK_ANALOG_L0(map_stick(j1_s[15:0])),  .PK_ANALOG_L1(map_stick(j2_s[15:0])),
         .PK_ANALOG_L2(map_stick(j3_s[15:0])),  .PK_ANALOG_L3(map_stick(j4_s[15:0])),
         .PK_ANALOG_R0(map_stick(j1_s[31:16])), .PK_ANALOG_R1(map_stick(j2_s[31:16])),
         .PK_ANALOG_R2(map_stick(j3_s[31:16])), .PK_ANALOG_R3(map_stick(j4_s[31:16])),
-        .PK_STATUS(128'd0),
+        .PK_STATUS({30'd0, settings[1], settings[0], 96'd0}),
         .PK_VID_CE(vid_ce), .PK_VID_HS(vid_hs), .PK_VID_VS(vid_vs), .PK_VID_HBL(vid_hbl), .PK_VID_VBL(vid_vbl),
         .PK_VID_ILACE(vid_ilace), .PK_VID_R(vid_r), .PK_VID_G(vid_g), .PK_VID_B(vid_b)
     );

@@ -15,7 +15,7 @@ Writes rom_<index>.bin per <rom index=...> and manifest.json (index, file, size,
 The config image (index 1) is padded to a whole 32-bit word: the Pocket bridge delivers whole words, so
 byte 0 = platform id, byte 1 = KEYCUS type, bit 16 = light-gun flag (zero-padded).
 --instance NAME also writes NAME.json, an APF instance file naming each image as the data slot of the same index
-(see pocket/dist/.../data.json and pocket/core/s11_loader.v for the slot map).
+(MRA index -> data slot id: 0->1, 1->2, 2->3, 3->4, 6->6, 7->7, 8->8; see pocket/dist/.../data.json).
 """
 import argparse, json, os, sys, zipfile, zlib
 import xml.etree.ElementTree as ET
@@ -154,8 +154,9 @@ def main():
     with open(os.path.join(a.out, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2)
     if a.instance:
+        slot_of = {0: 1, 1: 2, 2: 3, 3: 4, 6: 6, 7: 7, 8: 8, 9: 9}
         inst = {"instance": {"magic": "APF_VER_1", "data_path": a.instance + "/",
-                             "data_slots": [{"id": m["index"], "filename": m["file"]} for m in manifest]}}
+                             "data_slots": [{"id": slot_of[m["index"]], "filename": m["file"]} for m in manifest]}}
         with open(os.path.join(a.out, a.instance + ".json"), "w") as f:
             json.dump(inst, f, indent=2)
         print(f"instance: {a.instance}.json ({len(manifest)} slots)")
