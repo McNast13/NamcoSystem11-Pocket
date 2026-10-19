@@ -328,3 +328,13 @@ SYSTEM11.sv (adapted by pocket/core/emu/pocket_emu.apply) + variants + shell com
   Timing (slow 85C, real pins, SDRAM pin constraints applied): clk_3x +0.42, sdram_chip_clk +1.32, clk_1x +1.92, video +3.5, clk_74a +4.0, holds all positive;
   **clk_2x -0.63 ns** (the only failing domain). Settings are now part of tools/build_core_tree.py's s11full.qsf.
 - Shell cost (synthesis ALUTs): sdram ctrl 434, vram 372, audio 257, core_bridge_cmd 202, apf_video 200, ioctl bridge 156, APF pad controller 152.
+
+## Timing closure of the full core on the real part (2026-10-19)
+After the area-first fitter settings (above), seed sweep + path reports (pocket-shell.yml now runs report_paths.tcl):
+- All 300 worst clk_2x endpoints launched from `emu:s11|zn_keycus_id` (per-game config register fanning into the GPU's texture logic). It is written once
+  by the download while the core is in reset, so `pocket/core/core_constraints.sdc` now false-paths the 14 static config registers.
+  Seed 44 then met every setup/hold/recovery/removal check in the slow 85C model (clk_2x +0.46, clk_3x +0.52, sdram_chip_clk +1.33, clk_1x +2.65,
+  clk_74a +3.9, video +4.2) at 18,289 ALMs (run 39302880283).
+- The audio PLL clocks were missing from the SDC clock groups (recovery -88 ns on the dcfifo clear); fixed. With that, seed 44 shows SDRAM capture hold -0.16..-0.22 ns
+  (clk_3x, slow and fast models; the CL3 capture uses setup multicycle 2 with next-beat hold left as a real check), seed 22 clk_2x setup -0.07 (85C) / -0.42 (0C), seed 66 does not fit.
+- Next: D1_DELAY taps on dram_dq (the PS Pocket recipe's physical fix for next-beat hold) and a seed sweep.
