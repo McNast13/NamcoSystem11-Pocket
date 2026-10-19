@@ -384,14 +384,17 @@ module core_top (
     always @(posedge clk_74a) ee_shadow_q <= ee_shadow[bridge_addr[11:2]];
 
     // ---- Core settings (interact.json): DIP1 Test, DIP2 Freeze, held Service button ----
-    reg [2:0] settings74 = 3'b000;
+    reg [3:0] settings74 = 4'b1000;                      // [3] = diagnostic screen (default on during bring-up)
     always @(posedge clk_74a) if (bridge_wr) begin
         if (bridge_addr == 32'h50000000) settings74[0] <= bridge_wr_data[0];
         if (bridge_addr == 32'h50000004) settings74[1] <= bridge_wr_data[0];
         if (bridge_addr == 32'h50000008) settings74[2] <= bridge_wr_data[0];
+        if (bridge_addr == 32'h5000000C) settings74[3] <= bridge_wr_data[0];
     end
-    wire [2:0] settings;
-    synch_3 #(.WIDTH(3)) s_set (settings74, settings, clk1x);
+    wire [3:0] settings;
+    synch_3 #(.WIDTH(4)) s_set (settings74, settings, clk1x);
+    wire diag_vid;
+    synch_3 #(.WIDTH(1)) s_diag (settings74[3], diag_vid, clk_vid);
     wire [19:0] joy_svc = {6'b0, settings[2], 13'b0};     // joy[13] = Service
 
     // ---- the core ----
@@ -406,6 +409,7 @@ module core_top (
     wire [63:0] vr_din;
     wire        emu_clk_video_unused, emu_ce_pixel_unused;
 
+    wire [127:0] emu_dbg;
     emu s11 (
         .CLK_50M(clk_74a), .RESET(core_reset),
         .HDMI_WIDTH(12'd0), .HDMI_HEIGHT(12'd0),
@@ -429,7 +433,7 @@ module core_top (
         .PK_STATUS({30'd0, settings[1], settings[0], 96'd0}),
         .PK_VID_CE(vid_ce), .PK_VID_HS(vid_hs), .PK_VID_VS(vid_vs), .PK_VID_HBL(vid_hbl), .PK_VID_VBL(vid_vbl),
         .PK_VID_ILACE(vid_ilace), .PK_VID_R(vid_r), .PK_VID_G(vid_g), .PK_VID_B(vid_b),
-        .PK_EE_RD(ee_rd), .PK_EE_ADDR(ee_a), .PK_EE_Q(ee_q), .PK_EE_SAVE_REQ(ee_save_req)
+        .PK_EE_RD(ee_rd), .PK_EE_ADDR(ee_a), .PK_EE_Q(ee_q), .PK_EE_SAVE_REQ(ee_save_req), .PK_DBG(emu_dbg)
     );
 
     // ---- GPU VRAM on the two PSRAMs ----
@@ -447,15 +451,39 @@ module core_top (
         .cram1_ub_n(cram1_ub_n), .cram1_lb_n(cram1_lb_n)
     );
 
-    // ---- video: raw PSX video -> APF scaler protocol (as in the PS Pocket core) ----
+    // ---- bring-up diagnostics: sticky status flags + the live debug bus drawn on a screen of their own ----
+    reg [24:0] blink_cnt = 0;
+    reg dl_seen = 0, wr_seen = 0, ce_seen = 0, hs_seen = 0, vs_seen = 0, de_seen = 0, busy_seen = 0, rdy_seen = 0, rd_seen = 0, we_seen = 0, aud_seen = 0;
+    reg [7:0] idx_seen = 0;
+    always @(posedge clk1x) begin
+        blink_cnt <= blink_cnt + 1'b1;
+        if (ioctl_dl) dl_seen <= 1'b1;
+        if (ioctl_wr) begin
+            wr_seen <= 1'b1;
+            case (ioctl_index) 8'd0: idx_seen[0] <= 1; 8'd1: idx_seen[1] <= 1; 8'd2: idx_seen[2] <= 1; 8'd3: idx_seen[3] <= 1;
+                               8'd6: idx_seen[4] <= 1; 8'd7: idx_seen[5] <= 1; 8'd8: idx_seen[6] <= 1; 8'd9: idx_seen[7] <= 1; default: ; endcase
+        end
+        if (vid_ce) ce_seen <= 1; if (vid_hs) hs_seen <= 1; if (vid_vs) vs_seen <= 1; if (!vid_hbl && !vid_vbl) de_seen <= 1;
+        if (vr_busy) busy_seen <= 1; if (vr_dout_ready) rdy_seen <= 1; if (vr_rd) rd_seen <= 1; if (vr_we) we_seen <= 1;
+        if (aud_l != 16'd0 || aud_r != 16'd0) aud_seen <= 1;
+    end
+    wire [31:0] flags_a = {blink_cnt[24], pll_locked_74, mem_ready_74, reset_n, core_reset, ioctl_dl, dl_seen, wr_seen, ld_overflow,
+                           idx_seen, ce_seen, hs_seen, vs_seen, de_seen, busy_seen, rdy_seen, rd_seen, we_seen, vr_busy, aud_seen,
+                           settings[3], 3'b000};
+    wire [127:0] diag_bus = {flags_a, emu_dbg[127:96], emu_dbg[63:32], emu_dbg[31:0]};
+    wire dg_ce, dg_hs, dg_vs, dg_hbl, dg_vbl; wire [23:0] dg_rgb;
+    s11_diag diag (.clk(clk_vid), .bus(diag_bus), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
+
+    // ---- video: raw PSX video (or the diagnostic screen) -> APF scaler protocol (as in the PS Pocket core) ----
     wire apf_hs, apf_vs, apf_de, apf_skip;
     wire [23:0] apf_rgb;
     psx_apf_video #(.STEADY_INTERLACE(0), .SLOT_SELECT(1), .PAD_LINES(1), .CENTER_LINES(1), .VS_ON_HS(1),
                     .CROP_LINES(1), .BLANK_TOP(1), .LEAD_LINE(1), .MID_W(384)) apf_video (
-        .clk(clk_vid), .ce(vid_ce),
-        .hsync(vid_hs), .vsync(vid_vs), .hblank(vid_hbl), .vblank(vid_vbl), .interlace(vid_ilace),
-        .blank(core_reset), .weave(1'b0), .field_swap(1'b0), .video_test(2'b00),
-        .rgb_in({vid_r, vid_g, vid_b}),
+        .clk(clk_vid), .ce(diag_vid ? dg_ce : vid_ce),
+        .hsync(diag_vid ? dg_hs : vid_hs), .vsync(diag_vid ? dg_vs : vid_vs),
+        .hblank(diag_vid ? dg_hbl : vid_hbl), .vblank(diag_vid ? dg_vbl : vid_vbl), .interlace(diag_vid ? 1'b0 : vid_ilace),
+        .blank(diag_vid ? 1'b0 : core_reset), .weave(1'b0), .field_swap(1'b0), .video_test(2'b00),
+        .rgb_in(diag_vid ? dg_rgb : {vid_r, vid_g, vid_b}),
         .hs(apf_hs), .vs(apf_vs), .de(apf_de), .skip(apf_skip), .rgb(apf_rgb)
     );
     assign video_rgb_clock = clk_vid, video_rgb_clock_90 = clk_vid90;

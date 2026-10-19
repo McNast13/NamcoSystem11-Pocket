@@ -37,6 +37,18 @@
         "defaultval": 0,
         "value": 1,
         "value_off": 0
+      },
+      {
+        "name": "Diagnostic screen",
+        "id": 4,
+        "type": "check",
+        "enabled": true,
+        "persist": true,
+        "writeonly": true,
+        "address": "0x5000000C",
+        "defaultval": 1,
+        "value": 1,
+        "value_off": 0
       }
     ],
     "messages": []
