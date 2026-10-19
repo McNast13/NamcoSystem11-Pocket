@@ -1,9 +1,9 @@
 # Core constraints (loaded with the APF ones through core.qip / core_full.qip)
-# PLL outputs: general[0..2] = 33.87 / 67.74 / 101.61 MHz (phase aligned, timed against each other); general[3..4] = 53.69 MHz video
-# clock and its 90 degree copy (full build only). All are asynchronous to the Pocket's 74.25 MHz clocks and the bridge SPI clock;
+# core PLL (ic|pll|pll): general[0..2] = 33.87 / 67.74 / 101.61 MHz (phase aligned, timed against each other); video PLL
+# (ic|pll|video_pll): 53.69 MHz and its 90 degree copy (full build only). All are asynchronous to the Pocket's 74.25 MHz clocks and the bridge SPI clock;
 # every crossing is a gray-code FIFO or a 2-flop synchroniser (s11_ioctl_bridge / s11_loader FIFO, lock/reset/pad synchronisers).
 set core_clocks [get_clocks -nowarn {ic|pll|pll|general[0]* ic|pll|pll|general[1]* ic|pll|pll|general[2]*}]
-set vid_clocks  [get_clocks -nowarn {ic|pll|pll|general[3]* ic|pll|pll|general[4]*}]
+set vid_clocks  [get_clocks -nowarn {ic|pll|video_pll|general[0]* ic|pll|video_pll|general[1]*}]
 if {[get_collection_size $vid_clocks] > 0} {
     set_clock_groups -asynchronous -group { bridge_spiclk } -group { clk_74a } -group { clk_74b } -group $core_clocks -group $vid_clocks
 } else {
