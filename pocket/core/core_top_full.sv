@@ -499,7 +499,14 @@ module core_top (
     end
     wire [31:0] flags_a = {blink_cnt[24], pll_locked_74, mem_ready_74, reset_n, core_reset, ioctl_dl, dl_seen, wr_seen, ld_overflow,
                            idx_seen, ce_seen, hs_seen, vs_seen, de_seen, busy_seen, rdy_seen, rd_seen, we_seen, vr_busy, aud_seen,
-                           settings[3], 3'b000};
+                           settings[3], 4'b0000};
+    // slow PC samples (main CPU): a loop address shows up the same in every sample; the live PC bits blur on screen
+    reg [24:0] smp_cnt = 25'd0; reg [31:0] pc_smp_a = 32'd0, pc_smp_b = 32'd0;
+    always @(posedge clk1x) begin
+        smp_cnt <= smp_cnt + 1'b1;
+        if (smp_cnt == 25'd0)        pc_smp_a <= emu_dbg[127:96];
+        if (smp_cnt == 25'h0800000)  pc_smp_b <= emu_dbg[127:96];
+    end
     wire [127:0] diag_bus = {flags_a, emu_dbg[127:96], emu_dbg[63:32], emu_dbg[31:0]};
     reg  vs_wd_d = 1'b0; reg [22:0] vs_wd = 23'd0; reg diag_auto = 1'b1;
     always @(posedge clk_vid) begin
@@ -514,7 +521,7 @@ module core_top (
     wire diag_sel = diag_vid | diag_auto;
 `endif
     wire dg_ce, dg_hs, dg_vs, dg_hbl, dg_vbl; wire [23:0] dg_rgb;
-    s11_diag diag (.clk(clk_vid), .bus(diag_bus), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
+    s11_diag diag (.clk(clk_vid), .bus(diag_bus), .extra({pc_smp_a, pc_smp_b}), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
 
     // ---- video: raw PSX video (or the diagnostic screen) -> APF scaler protocol (as in the PS Pocket core) ----
     wire apf_hs, apf_vs, apf_de, apf_skip;

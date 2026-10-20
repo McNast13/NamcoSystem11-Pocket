@@ -316,7 +316,7 @@ module core_top (
 
     // ---- the picture: same generator as the full core's diagnostic screen (bus = fixed pattern so the status boxes are recognisable; the first box = 1 when the psx_apf_video path is in use) ----
     wire dg_ce, dg_hs, dg_vs, dg_hbl, dg_vbl; wire [23:0] dg_rgb;
-    s11_diag diag (.clk(clk_vid), .bus({path_apf, 31'h25A5A5A5, 32'hFFFF0000, 32'h12345678, 32'h0000FFFF}),
+    s11_diag diag (.clk(clk_vid), .extra(64'h0123456789ABCDEF), .bus({path_apf, 31'h25A5A5A5, 32'hFFFF0000, 32'h12345678, 32'h0000FFFF}),
                    .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
 
     // path A: the real formatter with the full core's parameters
