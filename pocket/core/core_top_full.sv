@@ -508,7 +508,11 @@ module core_top (
         else if (&vs_wd) diag_auto <= 1'b1;
         else vs_wd <= vs_wd + 1'b1;
     end
+`ifdef S11_FORCE_DIAG
+    wire diag_sel = 1'b1;     // bisect build: the diagnostic screen regardless of the setting and of the core's vsync
+`else
     wire diag_sel = diag_vid | diag_auto;
+`endif
     wire dg_ce, dg_hs, dg_vs, dg_hbl, dg_vbl; wire [23:0] dg_rgb;
     s11_diag diag (.clk(clk_vid), .bus(diag_bus), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
 
@@ -534,7 +538,11 @@ module core_top (
     // ---- audio (in diagnostic mode a 1 kHz square tone proves the clocks, the audio PLL and the I2S path independently of the core) ----
     reg [1:0] alive_s = 2'b00; always @(posedge clk1x) alive_s <= {alive_s[0], ~diag_auto};
     wire vid_alive_1x = alive_s[1];
+`ifdef S11_FORCE_DIAG
+    wire diag_vid_1x = 1'b1;
+`else
     wire diag_vid_1x = settings[3] | ~vid_alive_1x;
+`endif
     reg [14:0] tone_cnt = 0; reg signed [15:0] tone = 16'sh2000;
     always @(posedge clk1x) begin
         if (tone_cnt == 15'd16933) begin tone_cnt <= 0; tone <= -tone; end else tone_cnt <= tone_cnt + 1'b1;
