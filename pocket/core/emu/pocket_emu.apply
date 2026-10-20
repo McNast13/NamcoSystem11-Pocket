@@ -118,7 +118,7 @@ assign PK_VID_G = g;
 assign PK_VID_B = b;
 assign PK_EE_Q = ee_up_q;
 assign PK_EE_SAVE_REQ = ioctl_upload_req;
-assign PK_DBG2 = {s11_boot_dbg[63:32], c76_mbstat, c76_mblast, c76_status};   // boot-progress bits | {C76 RAM80, RAM83, MIPS mailbox write count} | last mailbox write + C76 flags | C76 status + live C76 PC
+assign PK_DBG2 = {s11_boot_dbg[95:64], s11_boot_dbg[63:32], s11_boot_dbg[31:0], c76_status};   // boot bits | last IO read | last IO write | C76 status + live PC
 assign PK_DBG = {zn_dbg_mipspc, zn_dbg_gpustat, c76_first_pc, c76_ever_sprog, c76_halted, c76_c352_seen, dbg_reached_game, 4'd0, zn_platform_r, zn_keycus_id, ram_cleared, reset, ioctl_download, sdram_req, sdram_readack, sdram_writeack, sdramCh3_done, clr_active, 8'd0};
 """ + t[m[0].start():]
 p.write_text(t)
