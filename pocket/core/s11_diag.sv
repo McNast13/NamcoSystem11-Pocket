@@ -49,7 +49,8 @@ module s11_diag (
         endcase
     end
     wire bit_v = word[5'd31 - col[4:0]];
-    wire [7:0] ramp = x[8:0] * 8'd255 / 9'd319;     // coarse 0..255 across the line
+    wire [16:0] ramp_w = x * 17'd255 / 17'd319;    // 17 bit: the 9 bit product overflowed and the ramps stayed black
+    wire [7:0] ramp = ramp_w[7:0];                 // 0..255 across the line
     reg [23:0] pix;
     always @* begin
         pix = 24'h000000;

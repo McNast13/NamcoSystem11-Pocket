@@ -304,12 +304,19 @@ module core_top (
     //      0 (the power-up value here) = raw: plain APF signalling straight from the generator, no slot words / padding / lead line ----
     reg path_apf74 = 1'b0;
     always @(posedge clk_74a) if (bridge_wr && bridge_addr == 32'h5000000C) path_apf74 <= bridge_wr_data[0];
-    wire path_apf;
-    synch_3 #(.WIDTH(1)) s_path (path_apf74, path_apf, clk_vid);
+    wire path_set;
+    synch_3 #(.WIDTH(1)) s_path (path_apf74, path_set, clk_vid);
+`ifdef FORCE_APF
+    wire path_apf = 1'b1;     // build variant: always the psx_apf_video path
+`elsif FORCE_RAW
+    wire path_apf = 1'b0;     // build variant: always the raw path
+`else
+    wire path_apf = path_set;
+`endif
 
-    // ---- the picture: same generator as the full core's diagnostic screen (bus = fixed pattern so the status boxes are recognisable) ----
+    // ---- the picture: same generator as the full core's diagnostic screen (bus = fixed pattern so the status boxes are recognisable; the first box = 1 when the psx_apf_video path is in use) ----
     wire dg_ce, dg_hs, dg_vs, dg_hbl, dg_vbl; wire [23:0] dg_rgb;
-    s11_diag diag (.clk(clk_vid), .bus({32'hA5A5A5A5, 32'hFFFF0000, 32'h12345678, 32'h0000FFFF}),
+    s11_diag diag (.clk(clk_vid), .bus({path_apf, 31'h25A5A5A5, 32'hFFFF0000, 32'h12345678, 32'h0000FFFF}),
                    .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
 
     // path A: the real formatter with the full core's parameters
