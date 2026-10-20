@@ -417,16 +417,32 @@ module core_top (
     assign vr_burst = 8'd0, vr_addr = 29'd0, vr_din = 64'd0, vr_be = 8'd0, vr_rd = 1'b0, vr_we = 1'b0;
     assign dram_a = 0, dram_ba = 0, dram_dq = 16'bz, dram_dqm = 2'b11, dram_clk = 0, dram_cke = 0, dram_ras_n = 1, dram_cas_n = 1, dram_we_n = 1;
 `else
+`ifdef S11_PARK_SDRAM
+    // bisect build: the emu's SDRAM controller is left unconnected, the chip pins parked
+    wire [15:0] sd_dq_dummy;
+    assign dram_a = 0, dram_ba = 0, dram_dq = 16'bz, dram_dqm = 2'b11, dram_clk = 0, dram_cke = 0, dram_ras_n = 1, dram_cas_n = 1, dram_we_n = 1;
+`endif
+`ifdef S11_HOLD_EMU
+    wire emu_reset = 1'b1;    // bisect build: emu present but held in reset
+`else
+    wire emu_reset = core_reset;
+`endif
     emu s11 (
-        .CLK_50M(clk_74a), .RESET(core_reset),
+        .CLK_50M(clk_74a), .RESET(emu_reset),
         .HDMI_WIDTH(12'd0), .HDMI_HEIGHT(12'd0),
         .FB_VBL(1'b0), .FB_LL(1'b0),
         .CLK_AUDIO(1'b0), .SD_MISO(1'b0), .SD_CD(1'b0),
         .DDRAM_BUSY(vr_busy), .DDRAM_BURSTCNT(vr_burst), .DDRAM_ADDR(vr_addr), .DDRAM_DOUT(vr_dout),
         .DDRAM_DOUT_READY(vr_dout_ready), .DDRAM_RD(vr_rd), .DDRAM_DIN(vr_din), .DDRAM_BE(vr_be), .DDRAM_WE(vr_we),
+`ifdef S11_PARK_SDRAM
+        .SDRAM_CLK(), .SDRAM_CKE(), .SDRAM_A(), .SDRAM_BA(), .SDRAM_DQ(sd_dq_dummy),
+        .SDRAM_DQML(), .SDRAM_DQMH(), .SDRAM_nCS(), .SDRAM_nCAS(),
+        .SDRAM_nRAS(), .SDRAM_nWE(),
+`else
         .SDRAM_CLK(dram_clk), .SDRAM_CKE(dram_cke), .SDRAM_A(dram_a), .SDRAM_BA(dram_ba), .SDRAM_DQ(dram_dq),
         .SDRAM_DQML(dram_dqm[0]), .SDRAM_DQMH(dram_dqm[1]), .SDRAM_nCS(), .SDRAM_nCAS(dram_cas_n),
         .SDRAM_nRAS(dram_ras_n), .SDRAM_nWE(dram_we_n),
+`endif
         .UART_CTS(1'b0), .UART_RXD(1'b0), .UART_DSR(1'b0), .USER_IN(7'd0), .OSD_STATUS(1'b0),
         .AUDIO_L(aud_l), .AUDIO_R(aud_r),
         .PK_CLK1X(clk1x), .PK_CLK2X(clk2x), .PK_CLK3X(clk3x), .PK_CLKVID(clk_vid), .PK_LOCKED(pll_locked),
