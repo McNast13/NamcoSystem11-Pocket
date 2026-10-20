@@ -49,8 +49,8 @@ module s11_diag (
         endcase
     end
     wire bit_v = word[5'd31 - col[4:0]];
-    wire [16:0] ramp_w = x * 17'd255 / 17'd319;    // 17 bit: the 9 bit product overflowed and the ramps stayed black
-    wire [7:0] ramp = ramp_w[7:0];                 // 0..255 across the line
+    wire [16:0] ramp_w = x * 17'd205;              // 17 bit: the 9 bit product overflowed and the ramps stayed black; x*205/256 = 0..255 over 0..319
+    wire [7:0] ramp = ramp_w[15:8];                // (a divide by 319 here took 27 ns, more than the 18.6 ns video clock period)
     reg [23:0] pix;
     always @* begin
         pix = 24'h000000;
