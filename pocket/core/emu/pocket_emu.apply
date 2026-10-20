@@ -54,7 +54,7 @@ sub("\tinput         OSD_STATUS\n);",
 \toutput [31:0] PK_EE_Q,
 \toutput        PK_EE_SAVE_REQ,
 \toutput [127:0] PK_DBG,
-\toutput [159:0] PK_DBG2
+\toutput [287:0] PK_DBG2
 );""")
 # EEPROM save-back: the read-back port of zn1_io is driven by core_top instead of the hps_io upload
 sub("wire       ee_up_rd   = ioctl_upload & (ioctl_index == 8'd9);", "wire       ee_up_rd   = PK_EE_RD;")

@@ -422,11 +422,11 @@ module core_top (
     wire [15:0] ioctl_dout_emu = ioctl_dout;
 `endif
     wire [127:0] emu_dbg;
-    wire [159:0] emu_dbg2;
+    wire [287:0] emu_dbg2;
 `ifdef S11_NO_EMU
     // bisect build: no System 11 core. Idle video / audio / memory buses, SDRAM pins parked.
     assign vid_ce = 1'b0, vid_hs = 1'b0, vid_vs = 1'b0, vid_hbl = 1'b1, vid_vbl = 1'b1, vid_ilace = 1'b0, vid_r = 8'd0, vid_g = 8'd0, vid_b = 8'd0;
-    assign aud_l = 16'd0, aud_r = 16'd0, emu_dbg = 128'd0, emu_dbg2 = 160'd0, ioctl_wait = 1'b0, ee_q = 32'd0, ee_save_req = 1'b0;
+    assign aud_l = 16'd0, aud_r = 16'd0, emu_dbg = 128'd0, emu_dbg2 = 288'd0, ioctl_wait = 1'b0, ee_q = 32'd0, ee_save_req = 1'b0;
     assign vr_burst = 8'd0, vr_addr = 29'd0, vr_din = 64'd0, vr_be = 8'd0, vr_rd = 1'b0, vr_we = 1'b0;
     assign dram_a = 0, dram_ba = 0, dram_dq = 16'bz, dram_dqm = 2'b11, dram_clk = 0, dram_cke = 0, dram_ras_n = 1, dram_cas_n = 1, dram_we_n = 1;
 `else
@@ -534,7 +534,7 @@ module core_top (
     wire diag_sel = diag_vid | diag_auto;
 `endif
     wire dg_ce, dg_hs, dg_vs, dg_hbl, dg_vbl; wire [23:0] dg_rgb;
-    s11_diag diag (.clk(clk_vid), .bus(diag_bus), .extra({pc_smp_a, emu_dbg2[31:0], emu_dbg2[159:128], emu_dbg2[127:96], emu_dbg2[95:64], emu_dbg2[63:32]}), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
+    s11_diag diag (.clk(clk_vid), .bus(diag_bus), .extra({pc_smp_a, emu_dbg2[127:96], emu_dbg2[287:256], emu_dbg2[95:64], emu_dbg2[63:32], emu_dbg2[31:0]}), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
 
     // ---- video: raw PSX video (or the diagnostic screen) -> APF scaler protocol (as in the PS Pocket core) ----
     wire apf_hs, apf_vs, apf_de, apf_skip;

@@ -22,16 +22,19 @@ def sub(path, old, new):
 top = out / "rtl/psx_top.vhd"
 sub(top, "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code -> top-level overlay auto-hide\n",
          "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code -> top-level overlay auto-hide\n"
-         "      s11_boot_dbg    : out std_logic_vector(159 downto 0) := (others => '0');  -- bring-up probe (s11_bootbits.apply)\n")
+         "      s11_boot_dbg    : out std_logic_vector(287 downto 0) := (others => '0');  -- bring-up probe (s11_bootbits.apply)\n")
 sub(top, "   dbg_reached_game <= s11_reached_game;",
          "   s11_boot_dbg <= (pc_reached_mid & pc_reached_gpuinit & m_gpuinit & m_strcmp & m_strfail & m_launch & m_decomp2 & s11_reached_game &\n"
          "                    rch_kernel & rch_initheap & rch_b0handler & rch_decomp & helper_entry_seen & panic_reached & gpu_accessed_seen & pio_prim_seen &\n"
          "                    dma2_prim_seen & raster_pixel_seen & imask0_write_seen & istat_ack_seen & vblank_irq_seen & irqreq_seen & io_ever_seen & spu_ever_seen &\n"
-         "                    cd_ever_seen & dma_ever_seen & dma_gpu_write_seen & std_logic_vector'(\"00000\")) & derail_src & std_logic_vector(cpu_dbg_exc_code) & std_logic_vector'(\"000\" & lowsled_seen) & std_logic_vector(cpu_dbg_fault_addr(23 downto 0)) & dbg_last_ram_pc & lowsled_src;\n"
+         "                    cd_ever_seen & dma_ever_seen & dma_gpu_write_seen & std_logic_vector'(\"00000\")) & derail_src & std_logic_vector(cpu_dbg_exc_code) & std_logic_vector'(\"000\" & lowsled_seen) & std_logic_vector(cpu_dbg_fault_addr(23 downto 0)) & dbg_last_ram_pc & lowsled_src & s11_ce_l & s11_if_l & s11_dr_l & s11_pa_l;\n"
          "   dbg_reached_game <= s11_reached_game;")
 
 sub(top, "   signal dbg_last_io_rd         : std_logic_vector(31 downto 0) := (others => '0');",
          "   signal s11_last_rd_any       : std_logic_vector(31 downto 0) := (others => '0');  -- bring-up probe: last CPU data read, any region\n"
+         "   signal s11_win : unsigned(24 downto 0) := (others => '0');\n"
+         "   signal s11_ce_c, s11_if_c, s11_dr_c, s11_pa_c : unsigned(31 downto 0) := (others => '0');\n"
+         "   signal s11_ce_l, s11_if_l, s11_dr_l, s11_pa_l : std_logic_vector(31 downto 0) := (others => '0');\n"
          "   signal dbg_last_io_rd         : std_logic_vector(31 downto 0) := (others => '0');")
 sub(top, "            if mem_request = '1' and mem_isData = '1' and mem_rnw = '0' then\n               dbg_last_wr_addr",
          "            if mem_request = '1' and mem_isData = '1' and mem_rnw = '1' then\n"
@@ -39,15 +42,33 @@ sub(top, "            if mem_request = '1' and mem_isData = '1' and mem_rnw = '0
          "            end if;\n"
          "            if mem_request = '1' and mem_isData = '1' and mem_rnw = '0' then\n               dbg_last_wr_addr")
 
+sub(top, "\nend architecture;",
+         "\n   -- bring-up probe: per-window (2^25 clk1x = ~1 s) counts of CPU clock enables, instruction-fetch requests, data requests and paused cycles\n"
+         "   s11_rate_proc : process (clk1x)\n"
+         "   begin\n"
+         "      if rising_edge(clk1x) then\n"
+         "         s11_win <= s11_win + 1;\n"
+         "         if ce = '1' then s11_ce_c <= s11_ce_c + 1; end if;\n"
+         "         if mem_request = '1' and mem_isData = '0' then s11_if_c <= s11_if_c + 1; end if;\n"
+         "         if mem_request = '1' and mem_isData = '1' then s11_dr_c <= s11_dr_c + 1; end if;\n"
+         "         if pausing = '1' or cpuPaused = '1' then s11_pa_c <= s11_pa_c + 1; end if;\n"
+         "         if s11_win = 0 then\n"
+         "            s11_ce_l <= std_logic_vector(s11_ce_c); s11_if_l <= std_logic_vector(s11_if_c);\n"
+         "            s11_dr_l <= std_logic_vector(s11_dr_c); s11_pa_l <= std_logic_vector(s11_pa_c);\n"
+         "            s11_ce_c <= (others => '0'); s11_if_c <= (others => '0'); s11_dr_c <= (others => '0'); s11_pa_c <= (others => '0');\n"
+         "         end if;\n"
+         "      end if;\n"
+         "   end process;\nend architecture;")
+
 mis = out / "rtl/psx_mister.vhd"
 sub(mis, "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code (overlay auto-hide)\n",
          "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code (overlay auto-hide)\n"
-         "      s11_boot_dbg    : out std_logic_vector(159 downto 0) := (others => '0');\n")
+         "      s11_boot_dbg    : out std_logic_vector(287 downto 0) := (others => '0');\n")
 sub(mis, "      dbg_reached_game => dbg_reached_game,\n",
          "      dbg_reached_game => dbg_reached_game,\n      s11_boot_dbg => s11_boot_dbg,\n")
 
 sv = out / "SYSTEM11.sv"
 sub(sv, "   .dbg_reached_game(dbg_reached_game),", "   .s11_boot_dbg(s11_boot_dbg),\n   .dbg_reached_game(dbg_reached_game),")
 sub(sv, "wire        dbg_reached_game; // MIPS reached game code (from psx_mister) -> overlay auto-hide",
-        "wire        dbg_reached_game; // MIPS reached game code (from psx_mister) -> overlay auto-hide\nwire [159:0] s11_boot_dbg;     // bring-up probe (s11_bootbits.apply)")
+        "wire        dbg_reached_game; // MIPS reached game code (from psx_mister) -> overlay auto-hide\nwire [287:0] s11_boot_dbg;     // bring-up probe (s11_bootbits.apply)")
 print("s11_bootbits: boot-progress latches + last IO read exported as s11_boot_dbg")
