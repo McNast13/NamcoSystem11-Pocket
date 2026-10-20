@@ -531,7 +531,12 @@ module core_top (
     // The APF's DDIO output registers capture rgb/de/hs/vs/skip on the rising edge of video_rgb_clock. Launching from that same edge is a
     // same-edge race that one Dragon 32 build hit (blank/flickering picture, fit dependent); retime the outputs onto the falling edge.
     reg [23:0] o_rgb = 24'd0; reg o_de = 1'b0, o_skip = 1'b0, o_hs = 1'b0, o_vs = 1'b0;
+`ifdef S11_POSEDGE_OUT
+    // as the PlayStation core: outputs straight off the rising edge
+    always @(posedge clk_vid) begin o_rgb <= apf_rgb; o_de <= apf_de; o_skip <= apf_skip; o_hs <= apf_hs; o_vs <= apf_vs; end
+`else
     always @(negedge clk_vid) begin o_rgb <= apf_rgb; o_de <= apf_de; o_skip <= apf_skip; o_hs <= apf_hs; o_vs <= apf_vs; end
+`endif
     assign video_rgb_clock = clk_vid, video_rgb_clock_90 = clk_vid90;
     assign video_rgb = o_rgb, video_de = o_de, video_skip = o_skip, video_hs = o_hs, video_vs = o_vs;
 
