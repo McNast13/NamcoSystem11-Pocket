@@ -409,6 +409,18 @@ module core_top (
     wire [63:0] vr_din;
     wire        emu_clk_video_unused, emu_ce_pixel_unused;
 
+    // bisect options for the EEPROM suspects: S11_NO_EE_SCAN stops the save-back scan using zn1_io's EEPROM read port; S11_EE_BLANK replaces
+    // the slot-9 (EEPROM) download with 0xFFFF words (the erased state of a 93C46), whatever the Pocket delivers
+`ifdef S11_NO_EE_SCAN
+    wire ee_rd_emu = 1'b0;
+`else
+    wire ee_rd_emu = ee_rd;
+`endif
+`ifdef S11_EE_BLANK
+    wire [15:0] ioctl_dout_emu = (ioctl_index == 8'd9) ? 16'hFFFF : ioctl_dout;
+`else
+    wire [15:0] ioctl_dout_emu = ioctl_dout;
+`endif
     wire [127:0] emu_dbg;
     wire [63:0]  emu_dbg2;
 `ifdef S11_NO_EMU
@@ -448,7 +460,7 @@ module core_top (
         .AUDIO_L(aud_l), .AUDIO_R(aud_r),
         .PK_CLK1X(clk1x), .PK_CLK2X(clk2x), .PK_CLK3X(clk3x), .PK_CLKVID(clk_vid), .PK_LOCKED(pll_locked),
         .PK_IOCTL_DL(ioctl_dl), .PK_IOCTL_WR(ioctl_wr), .PK_IOCTL_INDEX(ioctl_index), .PK_IOCTL_ADDR(ioctl_addr),
-        .PK_IOCTL_DOUT(ioctl_dout), .PK_IOCTL_WAIT(ioctl_wait),
+        .PK_IOCTL_DOUT(ioctl_dout_emu), .PK_IOCTL_WAIT(ioctl_wait),
         .PK_JOY0(map_joy(k1_s) | joy_svc), .PK_JOY1(map_joy(k2_s)), .PK_JOY2(map_joy(k3_s)), .PK_JOY3(map_joy(k4_s)),
         .PK_ANALOG_L0(map_stick(j1_s[15:0])),  .PK_ANALOG_L1(map_stick(j2_s[15:0])),
         .PK_ANALOG_L2(map_stick(j3_s[15:0])),  .PK_ANALOG_L3(map_stick(j4_s[15:0])),
@@ -457,7 +469,7 @@ module core_top (
         .PK_STATUS({30'd0, settings[1], settings[0], 96'd0}),
         .PK_VID_CE(vid_ce), .PK_VID_HS(vid_hs), .PK_VID_VS(vid_vs), .PK_VID_HBL(vid_hbl), .PK_VID_VBL(vid_vbl),
         .PK_VID_ILACE(vid_ilace), .PK_VID_R(vid_r), .PK_VID_G(vid_g), .PK_VID_B(vid_b),
-        .PK_EE_RD(ee_rd), .PK_EE_ADDR(ee_a), .PK_EE_Q(ee_q), .PK_EE_SAVE_REQ(ee_save_req), .PK_DBG(emu_dbg), .PK_DBG2(emu_dbg2)
+        .PK_EE_RD(ee_rd_emu), .PK_EE_ADDR(ee_a), .PK_EE_Q(ee_q), .PK_EE_SAVE_REQ(ee_save_req), .PK_DBG(emu_dbg), .PK_DBG2(emu_dbg2)
     );
 `endif
 
