@@ -4,12 +4,12 @@
 // `bus` is sampled straight from registers in other clock domains (a diagnostic, no synchronisers).
 //
 //   row 0 bus[127:96]  row 1 bus[95:64]  row 2 bus[63:32]  row 3 bus[31:0]      (rows are 16 lines high)
-//   rows 4, 5 extra[63:32], extra[31:0]   rows 6-8 R / G / B ramps   row 9 grey ramp   rows 10-13 eight colour bars
+//   rows 4-7 extra[127:96] .. extra[31:0]   row 9 grey ramp   rows 10-13 eight colour bars
 `default_nettype none
 module s11_diag (
     input  wire         clk,                 // clk_vid
     input  wire [127:0] bus,
-    input  wire [63:0]  extra,               // rows 4 and 5 (extra[63:32], extra[31:0])
+    input  wire [127:0] extra,               // rows 4..7 (extra[127:96] first)
     output reg          ce = 1'b0,
     output reg          hsync = 1'b0, vsync = 1'b0, hblank = 1'b1, vblank = 1'b1,
     output reg  [23:0]  rgb = 24'd0
@@ -46,8 +46,10 @@ module s11_diag (
             4'd1: word = bus[95:64];
             4'd2: word = bus[63:32];
             4'd3: word = bus[31:0];
-            4'd4: word = extra[63:32];
-            4'd5: word = extra[31:0];
+            4'd4: word = extra[127:96];
+            4'd5: word = extra[95:64];
+            4'd6: word = extra[63:32];
+            4'd7: word = extra[31:0];
             default: word = {frame, 15'd0, frame[5]};
         endcase
     end
@@ -57,12 +59,9 @@ module s11_diag (
     reg [23:0] pix;
     always @* begin
         pix = 24'h000000;
-        if (row <= 4'd5) begin
+        if (row <= 4'd7) begin
             if (box) pix = bit_v ? 24'h00C000 : 24'h300000;
-        end else if (row == 4'd6) pix = {ramp, 16'd0};
-        else if (row == 4'd7) pix = {8'd0, ramp, 8'd0};
-        else if (row == 4'd8) pix = {16'd0, ramp};
-        else if (row == 4'd9) pix = {ramp, ramp, ramp};
+        end else if (row == 4'd9) pix = {ramp, ramp, ramp};
         else if (row >= 4'd10 && row <= 4'd13) begin
             case (col[4:2])
                 3'd0: pix = 24'hFFFFFF; 3'd1: pix = 24'hFFFF00; 3'd2: pix = 24'h00FFFF; 3'd3: pix = 24'h00FF00;
