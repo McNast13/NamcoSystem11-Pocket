@@ -74,3 +74,37 @@ Diagnostic screen layout (forced-diag builds): rows 0-3 flags/live PC/C76/platfo
 instruction-fetch requests/s, data requests/s, paused cycles/s (see core_top_full.sv `.extra(...)`). Decode photos with `tools/diag_decode.py`; simulate the boot with `tools/s11sim/`.
 Build recipe used all session: `gh workflow run pocket-shell.yml -f project=s11full -f no_mdec=true -f label=X -f 'qsf_extra=set_global_assignment -name SEED 99\nset_global_assignment -name VERILOG_MACRO "S11_POSEDGE_OUT=1"\nset_global_assignment -name VERILOG_MACRO "S11_FORCE_DIAG=1"'`
 (one build is ~20 min of Actions; the test cores are `-f project=s11vid`). The SD card currently holds build `rateA` (run 39502603486).
+
+
+## Mined from the MiSTer author's notes (references/SYSTEM11_MiSTer, SYSTEM11.sv + rtl/psx_top.vhd comments) - read before resuming
+Same failure class as ours, recorded by XelaNotPu during his own bring-up:
+- **"MIPS reached game code but isn't rendering" was caused by the C76 sound CPU never completing its IPL/mailbox handshake.** His probes: `c76_ever_bios` (C76 ran the TB0 timer ISR store @0xC279),
+  `c76_ever_c098` (reached the TB1 mailbox-service ISR @0xC31F), `c76_resp` (wrote handshake word 0xBD30), MIPS mailbox write count (0 = MIPS not sending), RAM[0x83] toggling = TB0 alive
+  (the 0xC151 wait loop is normal). Ours (hardware, this session): resp=1, ever_bios=0, ever_c098=0, mailbox writes=0, ever_sprog=0, C76 PC parked near 0xC1BD, "derailed" flag set. => the C76 timer
+  interrupt (TB0) looks DEAD on the Pocket. MAME reaches the first game code only after a BIOS handshake timeout.
+- **My unsimulated area patches touch exactly that logic:** `c76_sfr_ram` (SFR file -> M10K, ~350 ALMs saved; timer start/reload/interrupt-priority SFRs 0x1E,0x40,0x70,0x77,0x78,0x7A,0x7B,0x7D-0x7F stay in FFs
+  but everything else is now registered-read RAM) and `c76_ram_bram` (512 B internal RAM -> BRAM, registered read; I also tied dbg_ram80/dbg_ram83 to 0, so those two diagnostic values read 0 by design).
+- **SDRAM channel 3 is shared by RAM clear, C76 SPROG reads and C352 wave reads, and each requester just waits for the next `sdramCh3_done` pulse.** He fixed a bug where a stray done pulse was latched as the
+  C76's opcode byte (C76 then ran RAM contents -> BRK -> halt @0xC1E9). Our `shim/s11_sdram_shim.sv` must reproduce the original `sdram.sv` done semantics exactly (one pulse per request, none spurious).
+- **Main RAM must be zero:** the game reads never-written regions (e.g. 0x802B1CE0, the EEPROM-default source buffer) expecting 0; SDRAM powers up as garbage -> his EEPROM verify @0x8003E6xx (Tekken 1 binary)
+  never converged. `reset_or = RESET | buttons[1] | status[0] | ioctl_download | ~ram_cleared` and a 4 MB zero-fill state machine (CLR_IDLE -> SETTLE (16-bit counter, rearms if a new download starts) ->
+  ISSUE/WAIT -> DONE) run after the last download. Our hardware reaches `ram_cleared=1`, but whether the writes actually landed in the Pocket SDRAM is UNVERIFIED.
+- Other facts: first game code is a late-boot ROM region 0x1FC2xxxx handshake then RAM; `zn_platform_r[4]` = System 11 mode, bit5 = gputype1 force; his SDRAM write-timing experiments (clk_3x_ps +90 deg)
+  are noted in the source; PSX data-cache/IO latches in this trimmed edition only fire on cache-miss requests, so "last IO read" style latches read 0 (use the bus_* signals instead).
+Decompressed-image facts (tools/s11sim): entry 0x80010000 = `j 0x80196D8C` followed by TEXT strings and data tables; real code starts at 0x80196D8C (crt0) / 0x801A0xxx. Every PC we sampled on hardware
+(0x80000D30..0x800FEE20) is data or zeros in that image => the hardware CPU is executing DATA, i.e. it did not follow the entry jump (or the code it fetched differs).
+
+## Resume plan (ranked by information per build; each hardware build ~20 min of Actions)
+1. **Free, no hardware: simulate the C76 variants.** Extend `tests/c352/run.sh` (nvc dual-DUT) to `c76.vhd` + `m37702.vhd` with the C76 BIOS (`rom_8.bin`, 16 KB, from rom_packer) and a stub mailbox: run reference vs patched
+   (`c76_sfr_ram`, `c76_ram_bram`) for a few million cycles, compare PC traces and RAM[0x83] toggling / TB0 ISR (@0xC279) / reaching 0xC31F. Any divergence is the bug. Also fuzz the SFR read/write semantics of the ten
+   special registers and the interrupt request/ack path.
+2. **One build with the discriminating probes** (add to the diagnostic extra rows): (a) first four distinct instruction-fetch lines at/after 0x80010000 (expect 0x80010000, then 0x80196D80...) to see whether the entry jump is
+   followed; (b) the instruction word delivered for 0x80010000 (expect 0x08065B63); (c) real C76 RAM[0x80]/[0x83] (registered copies, not the tied-off taps) and `ever_bios`/`ever_c098`; (d) count of `clr_active` and
+   `ioctl_download` sessions and a periodic readback of SDRAM word 0x2B1CE0 plus 0x0 and 0x3FFFFC after the clear (the author's own runtime monitor idea, gated so it cannot collide with the SPROG/wave FSMs).
+3. **Hardware A/B of my area variants** (macro-selectable in tools/build_core_tree.py): build without `c76_sfr_ram` (+~350 ALMs; we have ~700 spare with no_mdec), then also without `c76_ram_bram`, then without
+   `cpu_execute_share`; whichever restores ever_bios/ever_c098 or the entry-jump behaviour is the culprit. (`gte_laxer`, `ps_patches`, `gpu_*` variants are GPU/GTE side and unlikely.)
+4. **SDRAM self-test in the shell** before releasing the emu reset: write/readback patterns through the same ch1/ch3 path (incl. read-after-write to the same address and the 4 MB clear), show pass/fail on the diagnostic
+   screen. Also check the shim's `sdramCh3_done`/`readack`/`writeack` pulse counts against the number of requests.
+5. If the shell and variants are clean: checksum the decompressed game image (accumulate over the CPU's SDRAM write stream during decompression in the emulator and in hardware) to test decompressor/SDRAM-read integrity.
+6. When the game finally draws: switch the diagnostic default back off, restore the interact "Diagnostic screen" setting handling (the setting does not take effect on the device - find out why), drop the probe
+   extras from the shipping build, and go back to timing closure (seed sweep) and MDEC restore (+~600 ALMs).
