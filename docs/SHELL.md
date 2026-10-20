@@ -117,3 +117,13 @@ real code (decompress ~53 M instr), 0x80018654 = early game code (matches the Mi
 I/O code at 0x8003D4B0, 0x802B1Cxx default buffer referenced from 0x80042150. With I/O stubbed to 0 the emulator spends 99.9% of its time in that page polling 0x1FA30040. Hardware test to run on resume: load tekken1.json on the
 diagnostic build: PC samples in 0x8003E6xx => the author's known failure with his known cause/fix (main RAM not really zero / EEPROM state: verify the 4 MB zero-fill landed and zn1_io EEPROM readback);
 PC samples in data regions like Tekken 2 => a system-level fault (C76 variants, SDRAM shim, CPU variants). Either result halves the search space.
+
+
+## CORRECTION and Tekken 1 hardware result (2026-10-20, last test of the night)
+**Correction:** the "instruction-fetch requests per second" counter (diag row 7 in build rateA) reads ~2^25/10 (0x00333xxx) in BOTH Tekken 1 and Tekken 2: a fixed request cadence, not a measure of the
+workload. The earlier inference "continuous sequential fetches = NOP sled sweeping RAM" drawn from it is WRONG and is withdrawn. What the counters do show: CPU clock enable high every cycle (full speed), paused cycles 0.
+**Tekken 1 on hardware (build rateA, tekken1.json):** config 0x14/KEYCUS 0 loaded, RAM-clear flag set, boot bits 0x01700800 and GPUSTAT behaviour identical to Tekken 2 (GPU never touched, no IRQ mask).
+Sampled PCs (diag row 4): 0x8003E650 (inside the EEPROM compare/verify routine = the MiSTer author's failing loop), 0x8002B6A4 (real code), 0x800732EC / 0x8006037C / 0x8007A9EC (data tables in the Tekken 1 image).
+Conclusion: BOTH games execute a mix of real code and data => control flow is going wrong at system level, matching the author's documented cause (uninitialised/garbage RAM -> corrupt tables/pointers -> wild jumps, EEPROM verify never
+converges). The Tekken 2 observation that every sampled PC is data was probably the same effect seen later in time. FIRST THING ON RESUME: verify the 4 MB zero-fill actually landed in the Pocket SDRAM (plan item 2d / 4),
+then compare against the C76 variant theory. The SD card holds core build rateA plus both tekken2ud.json and tekken1.json.
