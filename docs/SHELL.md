@@ -108,3 +108,12 @@ Decompressed-image facts (tools/s11sim): entry 0x80010000 = `j 0x80196D8C` follo
 5. If the shell and variants are clean: checksum the decompressed game image (accumulate over the CPU's SDRAM write stream during decompression in the emulator and in hardware) to test decompressor/SDRAM-read integrity.
 6. When the game finally draws: switch the diagnostic default back off, restore the interact "Diagnostic screen" setting handling (the setting does not take effect on the device - find out why), drop the probe
    extras from the shipping build, and go back to timing closure (seed sweep) and MDEC restore (+~600 ALMs).
+
+
+## Tekken 1 reference (added 2026-10-20 late) - ROMs in ~/Downloads/tekken.zip (MAME `tekken`, MRA "Tekken (Asia TE4 Ver.C)" from _alternatives/_Tekken; the MRA "Tekken (TE2 Ver.C)" needs te2verc.* which this zip lacks)
+Pack: `python3 tools/rom_packer.py "references/SYSTEM11_MiSTer/releases/_Arcade/_alternatives/_Tekken/Tekken (Asia TE4 Ver.C).mra" --roms <dir with tekken.zip + namcoc76.zip> --out OUT/tekken1 --instance tekken1`
+(config word 0x14 00 00 00: platform 0x14, KEYCUS 0). SD layout: `Assets/namco_system11/common/tekken1.json` + `common/tekken1/rom_*.bin` (like tekken2ud). Simulator findings (tools/s11sim on Tekken 1): game entry 0x80010000 is
+real code (decompress ~53 M instr), 0x80018654 = early game code (matches the MiSTer author's note), **0x8003E600..0x8003E700 = the EEPROM compare/verify routine** (exactly the author's "EEPROM verify never converges" loop), EEPROM
+I/O code at 0x8003D4B0, 0x802B1Cxx default buffer referenced from 0x80042150. With I/O stubbed to 0 the emulator spends 99.9% of its time in that page polling 0x1FA30040. Hardware test to run on resume: load tekken1.json on the
+diagnostic build: PC samples in 0x8003E6xx => the author's known failure with his known cause/fix (main RAM not really zero / EEPROM state: verify the 4 MB zero-fill landed and zn1_io EEPROM readback);
+PC samples in data regions like Tekken 2 => a system-level fault (C76 variants, SDRAM shim, CPU variants). Either result halves the search space.
