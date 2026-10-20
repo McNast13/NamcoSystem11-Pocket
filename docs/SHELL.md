@@ -48,3 +48,29 @@ or a local Linux VM (UTM is installed; Quartus has no macOS build).
 package (copy `bitstream.rbf_r` and `interact.json` to `Cores/McNast13.NamcoSystem11/` on the SD card), photograph the diagnostic screen, and use its flags (docs above) to see how far the core gets.
 If the picture still does not reach the scaler, build a minimal video-only core to test the APF video path on its own (Dragon 32's video_frame_buffer.sv shows a proven 60 Hz, real-pixel-clock approach).
 Remaining timing misses (none clean in all four models yet): see docs/BASELINE.md.
+
+
+## Bring-up log 2026-10-20 (hardware debugging session)
+Where it stands: the video, audio, PLL, loader and bridge shell are verified on a real Pocket; the System 11 core boots to the game's startup code but the game never draws
+(GPU never touched). Findings, in the order they were established:
+1. The flat grey screen with one bright line was NOT broken video. (a) The `psx_apf_video` path works on hardware (video-only test core `s11vid`, formatter and raw paths). (b) The falling-edge
+   output retime (copied from the Dragon 32 core) corrupted colour bits; the PlayStation core registers outputs on the rising edge: macro `S11_POSEDGE_OUT` (use it). (c) The
+   "Diagnostic screen" core setting does not take effect on the device, so the mux showed the (black) game video; macro `S11_FORCE_DIAG` forces the diagnostic screen and tone.
+2. PLL placement was a red herring (pinned and unpinned both behave the same).
+3. With the diagnostic forced on the status is: all data slots loaded (idx 0,1,3,6,7,8,9), platform byte 0x14 (System 11), KEYCUS 1, RAM cleared, C76 BIOS running (first PC 0xC030,
+   C352 written, response flag set, never reached the mailbox-service ISR, MIPS mailbox write count 0), MIPS fetched game-entry code (boot bits 0x01500800/0x01700800), GPUSTAT stays at the
+   reset value 0x14802000 (never configured), no VBLANK-mask write, DDRAM (VRAM) reads/writes never seen. First genuine CPU fault = Reserved Instruction (code 0xA).
+4. EEPROM scan (`S11_NO_EE_SCAN`) and blank EEPROM image (`S11_EE_BLANK`) made no difference.
+5. Rate probe (build `rateA`): CPU clock enable is high every cycle (full speed, not paused), ~3.36 M instruction-fetch requests/s = continuous sequential cache-line refills, i.e. the CPU is
+   running straight-line code through memory (PC samples span 0x80000000-0x80100000, two landed in all-zero RAM = NOP sled). Best hypothesis: the game image in RAM is gone (zeroed under
+   the CPU) or the decompressor output is wrong.
+Next steps (in order):
+ a. Count RAM-clear sessions and `ioctl_download` sessions (rising edges of `clr_active` / `ioctl_download` in SYSTEM11.sv) and show them on the diagnostic screen: if a second clear/download
+    happens after the CPU started (e.g. the nonvolatile EEPROM slot loads after reset release) the RAM is wiped under the running game. Fix: hold the emu in reset until every slot incl. slot 9 is
+    done, and never clear RAM after the first run.
+ b. If only one clear: capture the instruction words fetched at 0x80010000 / 0x80196D8C (expect 0x08065B63 and 0x3C02801D) and a checksum of the decompressed image to test the decompressor/SDRAM read path.
+ c. MiSTer author's notes (references/SYSTEM11_MiSTer/rtl/psx_top.vhd comments) record the same class of stall; his latches are exported through `synth/pocket_probe/variants/s11_bootbits.apply`.
+Diagnostic screen layout (forced-diag builds): rows 0-3 flags/live PC/C76/platform, then extra rows 4-9 = sampled PC, CPU clock enables per second, boot-progress bits,
+instruction-fetch requests/s, data requests/s, paused cycles/s (see core_top_full.sv `.extra(...)`). Decode photos with `tools/diag_decode.py`; simulate the boot with `tools/s11sim/`.
+Build recipe used all session: `gh workflow run pocket-shell.yml -f project=s11full -f no_mdec=true -f label=X -f 'qsf_extra=set_global_assignment -name SEED 99\nset_global_assignment -name VERILOG_MACRO "S11_POSEDGE_OUT=1"\nset_global_assignment -name VERILOG_MACRO "S11_FORCE_DIAG=1"'`
+(one build is ~20 min of Actions; the test cores are `-f project=s11vid`). The SD card currently holds build `rateA` (run 39502603486).
