@@ -1,0 +1,6 @@
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "core_top_vid.sv"]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) "core_bridge_cmd.v"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "s11_pll.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "s11_diag.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "video/psx_apf_video.sv"]
+set_global_assignment -name SDC_FILE [file join $::quartus(qip_path) "core_constraints.sdc"]
