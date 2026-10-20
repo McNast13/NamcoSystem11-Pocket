@@ -22,36 +22,32 @@ def sub(path, old, new):
 top = out / "rtl/psx_top.vhd"
 sub(top, "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code -> top-level overlay auto-hide\n",
          "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code -> top-level overlay auto-hide\n"
-         "      s11_boot_dbg    : out std_logic_vector(95 downto 0) := (others => '0');  -- bring-up probe (s11_bootbits.apply)\n")
+         "      s11_boot_dbg    : out std_logic_vector(159 downto 0) := (others => '0');  -- bring-up probe (s11_bootbits.apply)\n")
 sub(top, "   dbg_reached_game <= s11_reached_game;",
          "   s11_boot_dbg <= (pc_reached_mid & pc_reached_gpuinit & m_gpuinit & m_strcmp & m_strfail & m_launch & m_decomp2 & s11_reached_game &\n"
          "                    rch_kernel & rch_initheap & rch_b0handler & rch_decomp & helper_entry_seen & panic_reached & gpu_accessed_seen & pio_prim_seen &\n"
          "                    dma2_prim_seen & raster_pixel_seen & imask0_write_seen & istat_ack_seen & vblank_irq_seen & irqreq_seen & io_ever_seen & spu_ever_seen &\n"
-         "                    cd_ever_seen & dma_ever_seen & dma_gpu_write_seen & std_logic_vector'(\"00000\")) & s11_last_io_rd & s11_last_io_wr;\n"
+         "                    cd_ever_seen & dma_ever_seen & dma_gpu_write_seen & std_logic_vector'(\"00000\")) & std_logic_vector(cpu_dbg_exc_epc) & std_logic_vector(cpu_dbg_exc_code) & std_logic_vector'(x\"0\") & std_logic_vector(cpu_dbg_fault_addr(23 downto 0)) & dbg_last_wr_addr & s11_last_rd_any;\n"
          "   dbg_reached_game <= s11_reached_game;")
 
 sub(top, "   signal dbg_last_io_rd         : std_logic_vector(31 downto 0) := (others => '0');",
-         "   signal s11_last_io_rd        : std_logic_vector(31 downto 0) := (others => '0');  -- bring-up probe: last CPU data read in 0x1F800000-0x1FBFFFFF\n"
-         "   signal s11_last_io_wr        : std_logic_vector(31 downto 0) := (others => '0');  -- bring-up probe: last CPU data write in 0x1F800000-0x1FBFFFFF\n"
+         "   signal s11_last_rd_any       : std_logic_vector(31 downto 0) := (others => '0');  -- bring-up probe: last CPU data read, any region\n"
          "   signal dbg_last_io_rd         : std_logic_vector(31 downto 0) := (others => '0');")
 sub(top, "            if mem_request = '1' and mem_isData = '1' and mem_rnw = '0' then\n               dbg_last_wr_addr",
-         "            if mem_request = '1' and mem_isData = '1' and mem_rnw = '1' and mem_addressData(28 downto 22) = \"1111110\" then\n"
-         "               s11_last_io_rd <= std_logic_vector(mem_addressData);\n"
-         "            end if;\n"
-         "            if mem_request = '1' and mem_isData = '1' and mem_rnw = '0' and mem_addressData(28 downto 22) = \"1111110\" then\n"
-         "               s11_last_io_wr <= std_logic_vector(mem_addressData);\n"
+         "            if mem_request = '1' and mem_isData = '1' and mem_rnw = '1' then\n"
+         "               s11_last_rd_any <= std_logic_vector(mem_addressData);\n"
          "            end if;\n"
          "            if mem_request = '1' and mem_isData = '1' and mem_rnw = '0' then\n               dbg_last_wr_addr")
 
 mis = out / "rtl/psx_mister.vhd"
 sub(mis, "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code (overlay auto-hide)\n",
          "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code (overlay auto-hide)\n"
-         "      s11_boot_dbg    : out std_logic_vector(95 downto 0) := (others => '0');\n")
+         "      s11_boot_dbg    : out std_logic_vector(159 downto 0) := (others => '0');\n")
 sub(mis, "      dbg_reached_game => dbg_reached_game,\n",
          "      dbg_reached_game => dbg_reached_game,\n      s11_boot_dbg => s11_boot_dbg,\n")
 
 sv = out / "SYSTEM11.sv"
 sub(sv, "   .dbg_reached_game(dbg_reached_game),", "   .s11_boot_dbg(s11_boot_dbg),\n   .dbg_reached_game(dbg_reached_game),")
 sub(sv, "wire        dbg_reached_game; // MIPS reached game code (from psx_mister) -> overlay auto-hide",
-        "wire        dbg_reached_game; // MIPS reached game code (from psx_mister) -> overlay auto-hide\nwire [95:0] s11_boot_dbg;     // bring-up probe (s11_bootbits.apply)")
+        "wire        dbg_reached_game; // MIPS reached game code (from psx_mister) -> overlay auto-hide\nwire [159:0] s11_boot_dbg;     // bring-up probe (s11_bootbits.apply)")
 print("s11_bootbits: boot-progress latches + last IO read exported as s11_boot_dbg")
