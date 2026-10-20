@@ -410,6 +410,13 @@ module core_top (
     wire        emu_clk_video_unused, emu_ce_pixel_unused;
 
     wire [127:0] emu_dbg;
+`ifdef S11_NO_EMU
+    // bisect build: no System 11 core. Idle video / audio / memory buses, SDRAM pins parked.
+    assign vid_ce = 1'b0, vid_hs = 1'b0, vid_vs = 1'b0, vid_hbl = 1'b1, vid_vbl = 1'b1, vid_ilace = 1'b0, vid_r = 8'd0, vid_g = 8'd0, vid_b = 8'd0;
+    assign aud_l = 16'd0, aud_r = 16'd0, emu_dbg = 128'd0, ioctl_wait = 1'b0, ee_q = 32'd0, ee_save_req = 1'b0;
+    assign vr_burst = 8'd0, vr_addr = 29'd0, vr_din = 64'd0, vr_be = 8'd0, vr_rd = 1'b0, vr_we = 1'b0;
+    assign dram_a = 0, dram_ba = 0, dram_dq = 16'bz, dram_dqm = 2'b11, dram_clk = 0, dram_cke = 0, dram_ras_n = 1, dram_cas_n = 1, dram_we_n = 1;
+`else
     emu s11 (
         .CLK_50M(clk_74a), .RESET(core_reset),
         .HDMI_WIDTH(12'd0), .HDMI_HEIGHT(12'd0),
@@ -435,10 +442,16 @@ module core_top (
         .PK_VID_ILACE(vid_ilace), .PK_VID_R(vid_r), .PK_VID_G(vid_g), .PK_VID_B(vid_b),
         .PK_EE_RD(ee_rd), .PK_EE_ADDR(ee_a), .PK_EE_Q(ee_q), .PK_EE_SAVE_REQ(ee_save_req), .PK_DBG(emu_dbg)
     );
+`endif
 
     // ---- GPU VRAM on the two PSRAMs ----
     reg [2:0] unlock_s2x = 3'b111;
     always @(posedge clk2x or negedge pll_locked) if (!pll_locked) unlock_s2x <= 3'b111; else unlock_s2x <= {unlock_s2x[1:0], 1'b0};
+`ifdef S11_NO_VRAM
+    assign vr_busy = 1'b0, vr_dout = 64'd0, vr_dout_ready = 1'b0;
+    assign cram0_a = 0, cram0_dq = 16'bz, cram0_clk = 0, cram0_adv_n = 1, cram0_cre = 0, cram0_ce0_n = 1, cram0_ce1_n = 1, cram0_oe_n = 1, cram0_we_n = 1, cram0_ub_n = 1, cram0_lb_n = 1;
+    assign cram1_a = 0, cram1_dq = 16'bz, cram1_clk = 0, cram1_adv_n = 1, cram1_cre = 0, cram1_ce0_n = 1, cram1_ce1_n = 1, cram1_oe_n = 1, cram1_we_n = 1, cram1_ub_n = 1, cram1_lb_n = 1;
+`else
     s11_vram vram (
         .clk2x(clk2x), .reset(unlock_s2x[2]), .park(~reset_n),
         .ddr_busy(vr_busy), .ddr_burstcnt(vr_burst), .ddr_addr(vr_addr[24:0]), .ddr_dout(vr_dout),
@@ -450,6 +463,7 @@ module core_top (
         .cram1_ce0_n(cram1_ce0_n), .cram1_ce1_n(cram1_ce1_n), .cram1_oe_n(cram1_oe_n), .cram1_we_n(cram1_we_n),
         .cram1_ub_n(cram1_ub_n), .cram1_lb_n(cram1_lb_n)
     );
+`endif
 
     // ---- bring-up diagnostics: sticky status flags + the live debug bus drawn on a screen of their own ----
     reg [24:0] blink_cnt = 0;
@@ -510,9 +524,13 @@ module core_top (
         if (tone_cnt == 15'd16933) begin tone_cnt <= 0; tone <= -tone; end else tone_cnt <= tone_cnt + 1'b1;
     end
 
+`ifdef S11_NO_AUDIO
+    assign audio_mclk = 0, audio_dac = 0, audio_lrck = 0;
+`else
     s11_audio audio (
         .clk_74b(clk_74b), .clk(clk1x), .reset(core_reset),
         .in_l(diag_vid_1x ? tone : $signed(aud_l)), .in_r(diag_vid_1x ? tone : $signed(aud_r)),
         .audio_mclk(audio_mclk), .audio_lrck(audio_lrck), .audio_dac(audio_dac)
     );
+`endif
 endmodule
