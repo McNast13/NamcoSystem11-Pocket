@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""Bring-up probe: export the MiSTer core's boot-progress latches and the last I/O read address through psx_top -> psx_mister -> SYSTEM11.sv
+as one 64-bit port s11_boot_dbg (the latches are the MiSTer author's own boot milestones; nothing else changes).
+  [63:32] bits: 31 pc_reached_mid 30 pc_reached_gpuinit 29 m_gpuinit 28 m_strcmp 27 m_strfail 26 m_launch 25 m_decomp2 24 s11_reached_game
+                23 rch_kernel(0xBFC00484 kernel copy) 22 rch_initheap(0x8004xxxx) 21 rch_b0handler(0x8005xxxx) 20 rch_decomp(0x8001xxxx game entry)
+                19 helper_entry_seen 18 panic_reached 17 gpu_accessed_seen 16 pio_prim_seen 15 dma2_prim_seen 14 raster_pixel_seen
+                13 imask0_write_seen 12 istat_ack_seen 11 vblank_irq_seen 10 irqreq_seen 9 io_ever_seen 8 spu_ever_seen 7 cd_ever_seen
+                6 dma_ever_seen 5 dma_gpu_write_seen 4:0 zero
+  [31:0]  dbg_last_io_rd (last CPU data read in the hardware/IO range = the poll target when waiting on a register)
+Usage: s11_bootbits.apply OUTDIR [ignored...]
+"""
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+
+def sub(path, old, new):
+    t = path.read_text()
+    assert t.count(old) == 1, (path.name, old, t.count(old))
+    path.write_text(t.replace(old, new))
+
+top = out / "rtl/psx_top.vhd"
+sub(top, "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code -> top-level overlay auto-hide\n",
+         "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code -> top-level overlay auto-hide\n"
+         "      s11_boot_dbg    : out std_logic_vector(63 downto 0) := (others => '0');  -- bring-up probe (s11_bootbits.apply)\n")
+sub(top, "   dbg_reached_game <= s11_reached_game;",
+         "   s11_boot_dbg <= (pc_reached_mid & pc_reached_gpuinit & m_gpuinit & m_strcmp & m_strfail & m_launch & m_decomp2 & s11_reached_game &\n"
+         "                    rch_kernel & rch_initheap & rch_b0handler & rch_decomp & helper_entry_seen & panic_reached & gpu_accessed_seen & pio_prim_seen &\n"
+         "                    dma2_prim_seen & raster_pixel_seen & imask0_write_seen & istat_ack_seen & vblank_irq_seen & irqreq_seen & io_ever_seen & spu_ever_seen &\n"
+         "                    cd_ever_seen & dma_ever_seen & dma_gpu_write_seen & std_logic_vector'(\"00000\")) & dbg_last_io_rd;\n"
+         "   dbg_reached_game <= s11_reached_game;")
+
+mis = out / "rtl/psx_mister.vhd"
+sub(mis, "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code (overlay auto-hide)\n",
+         "      dbg_reached_game : out std_logic := '0';  -- MIPS reached game code (overlay auto-hide)\n"
+         "      s11_boot_dbg    : out std_logic_vector(63 downto 0) := (others => '0');\n")
+sub(mis, "      dbg_reached_game => dbg_reached_game,\n",
+         "      dbg_reached_game => dbg_reached_game,\n      s11_boot_dbg => s11_boot_dbg,\n")
+
+sv = out / "SYSTEM11.sv"
+sub(sv, "   .dbg_reached_game(dbg_reached_game),", "   .s11_boot_dbg(s11_boot_dbg),\n   .dbg_reached_game(dbg_reached_game),")
+sub(sv, "wire        dbg_reached_game; // MIPS reached game code (from psx_mister) -> overlay auto-hide",
+        "wire        dbg_reached_game; // MIPS reached game code (from psx_mister) -> overlay auto-hide\nwire [63:0] s11_boot_dbg;     // bring-up probe (s11_bootbits.apply)")
+print("s11_bootbits: boot-progress latches + last IO read exported as s11_boot_dbg")

@@ -118,12 +118,7 @@ assign PK_VID_G = g;
 assign PK_VID_B = b;
 assign PK_EE_Q = ee_up_q;
 assign PK_EE_SAVE_REQ = ioctl_upload_req;
-reg [15:0] pk_rd_acc = 16'd0, pk_rd_stall = 16'd0;   // DDRAM read requests accepted (RD & ~BUSY) / stalled (RD & BUSY), clk_2x
-always @(posedge clk_2x) begin
-\tif (DDRAM_RD & ~DDRAM_BUSY) pk_rd_acc <= pk_rd_acc + 1'b1;
-\tif (DDRAM_RD &  DDRAM_BUSY) pk_rd_stall <= pk_rd_stall + 1'b1;
-end
-assign PK_DBG2 = {ddram_we_acc, ddram_we_stall, pk_rd_acc, pk_rd_stall};
+assign PK_DBG2 = s11_boot_dbg;   // s11_bootbits.apply: boot-progress bits | last IO read address
 assign PK_DBG = {zn_dbg_mipspc, zn_dbg_gpustat, c76_first_pc, c76_ever_sprog, c76_halted, c76_c352_seen, dbg_reached_game, 4'd0, zn_platform_r, zn_keycus_id, ram_cleared, reset, ioctl_download, sdram_req, sdram_readack, sdram_writeack, sdramCh3_done, clr_active, 8'd0};
 """ + t[m[0].start():]
 p.write_text(t)
