@@ -127,3 +127,17 @@ Sampled PCs (diag row 4): 0x8003E650 (inside the EEPROM compare/verify routine =
 Conclusion: BOTH games execute a mix of real code and data => control flow is going wrong at system level, matching the author's documented cause (uninitialised/garbage RAM -> corrupt tables/pointers -> wild jumps, EEPROM verify never
 converges). The Tekken 2 observation that every sampled PC is data was probably the same effect seen later in time. FIRST THING ON RESUME: verify the 4 MB zero-fill actually landed in the Pocket SDRAM (plan item 2d / 4),
 then compare against the C76 variant theory. The SD card holds core build rateA plus both tekken2ud.json and tekken1.json.
+
+
+## ROOT CAUSE of the C76 failure found by simulation (2026-10-21): the C76 BIOS was loaded with every 4n+1 byte missing
+**Not the area patches.** `tests/c76/run.sh` (nvc dual-DUT, reference c76+m37702 vs the same with `c76_sfr_ram` applied, real C76 BIOS `rom_8.bin`, real SPROG `rom_6.bin`, substrate-like external bus, ce = clk_1x/2) shows
+the patched C76 is cycle-identical to the reference over 20 M clocks: C098 at clk 25 k, wait loop 0xC151 at 1.3 M, then TB0 ISR (0xC279) and mailbox ISR (0xC31F) run forever (1488/2244 times in 20 M clocks). SPROG content
+(zeros / 0xFF / garbage) and SPROG read latency do not matter to the BIOS reaching 0xC151.
+Then: BIOS image variants. A BIOS with **every byte at offset 4n+1 zeroed** parks the C76 at **0xC1BD within ~100 clocks and never leaves** (milestones never reached) = the hardware symptom (PC parked ~0xC1BD, ever_bios=0, mailbox 0).
+Cause: `s11_ioctl_bridge` emitted the low and high halves of each 32-bit word on consecutive clocks; SYSTEM11.sv's C76 BIOS byte writer (`c76bios_*`) writes byte 0 of a half on the clock after `ioctl_wr` and byte 1 one clock later,
+but a new `ioctl_wr` takes priority over the pending byte, so byte 1 of the low half (offset 4n+1) was overwritten. `pocket/core/tb/tb_c76bios.v` (bridge -> verbatim SYSTEM11.sv writer -> 16 KB memory) reproduced it:
+4,079 bad bytes / 4,096 never written; after the fix 0 bad. (MiSTer's hps_io spaces the halves further apart so the original never saw it.)
+Fix: one idle clock between the halves (`S_MID` in `s11_ioctl_bridge.v`); `tb_ioctl_bridge.v` still passes, `pocket/core/tb/run_ioctl.sh` runs both. NOT yet built or tested on hardware.
+Consequences: with a corrupted BIOS the C76 never handshakes, so the MIPS side waiting for it would derail exactly as observed; resume plan items 3 (A/B area variants) and the C76 half of 2 are deferred until a build with this fix is
+tried. Keep the RAM zero-fill / SDRAM probes (plan 2d/4) for the next build in case the game still derails. Also check every other consumer of the bridge for the same back-to-back assumption (EEPROM path, SPROG/wave SDRAM path both
+accept either spacing; config word is consumed by `zn_platform_r` capture - not re-checked).

@@ -8,7 +8,7 @@
 //   bridge_addr[31:28] == 0, bridge_addr[27:24] = window (see s11_loader.v / docs/LOADER.md), bridge_addr[23:2] = word offset
 //   window -> ioctl_index: 0->0 program, 1->1 config, 2->2 fixed ROM, 3->3 banked ROM, 4->3 (+16 MB), 6->6 SPROG, 7->7 wave,
 //                          8->8 C76 BIOS, 9->9 EEPROM; other windows are dropped
-//   Each 32-bit word becomes two ioctl_wr pulses (low half at addr, high half at addr+2), then the bridge waits for ioctl_wait
+//   Each 32-bit word becomes two ioctl_wr pulses (low half at addr, high half at addr+2, one idle clock apart), then the bridge waits for ioctl_wait
 //   to fall. ioctl_download goes low for GAP clocks between files (index changes) and after IDLE_END clocks without data.
 `default_nettype none
 module s11_ioctl_bridge #(
@@ -77,7 +77,7 @@ module s11_ioctl_bridge #(
     end
     wire empty = (rptr_gray == wptr_gray_r2);
 
-    localparam S_IDLE = 4'd0, S_RD = 4'd1, S_DEC = 4'd2, S_GAPW = 4'd3, S_LO = 4'd4, S_HI = 4'd5, S_SETTLE = 4'd6, S_WAIT = 4'd7;
+    localparam S_IDLE = 4'd0, S_RD = 4'd1, S_DEC = 4'd2, S_GAPW = 4'd3, S_LO = 4'd4, S_HI = 4'd5, S_SETTLE = 4'd6, S_WAIT = 4'd7, S_MID = 4'd8;
     reg [3:0]  state = S_IDLE;
     reg [57:0] q;
     reg [15:0] gap_cnt = 0;
@@ -144,7 +144,11 @@ module s11_ioctl_bridge #(
                     if (gap_cnt == 8) state <= S_LO;
                 end
                 S_LO: begin
-                    ioctl_addr <= pend_addr; ioctl_dout <= wdat[15:0]; ioctl_wr <= 1'b1; hi_half <= wdat[31:16]; state <= S_HI;
+                    ioctl_addr <= pend_addr; ioctl_dout <= wdat[15:0]; ioctl_wr <= 1'b1; hi_half <= wdat[31:16]; state <= S_MID;
+                end
+                S_MID: begin                                         // one idle clock between the halves: the core's C76 BIOS byte writer
+                    state <= S_HI;                                   // (SYSTEM11.sv c76bios_*) retires byte 1 of a half on the clock after it, and
+                                                                     // back-to-back ioctl_wr overwrote it (every 4n+1 byte of the BIOS was lost)
                 end
                 S_HI: begin
                     ioctl_addr <= pend_addr + 27'd2; ioctl_dout <= hi_half; ioctl_wr <= 1'b1; gap_cnt <= 0; state <= S_WAIT;
