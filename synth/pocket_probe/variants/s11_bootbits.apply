@@ -27,7 +27,7 @@ sub(top, "   dbg_reached_game <= s11_reached_game;",
          "   s11_boot_dbg <= (pc_reached_mid & pc_reached_gpuinit & m_gpuinit & m_strcmp & m_strfail & m_launch & m_decomp2 & s11_reached_game &\n"
          "                    rch_kernel & rch_initheap & rch_b0handler & rch_decomp & helper_entry_seen & panic_reached & gpu_accessed_seen & pio_prim_seen &\n"
          "                    dma2_prim_seen & raster_pixel_seen & imask0_write_seen & istat_ack_seen & vblank_irq_seen & irqreq_seen & io_ever_seen & spu_ever_seen &\n"
-         "                    cd_ever_seen & dma_ever_seen & dma_gpu_write_seen & std_logic_vector'(\"00000\")) & std_logic_vector(cpu_dbg_exc_epc) & std_logic_vector(cpu_dbg_exc_code) & std_logic_vector'(\"000\" & lowsled_seen) & std_logic_vector(cpu_dbg_fault_addr(23 downto 0)) & dbg_last_ram_pc & std_logic_vector(cpu_dbg_fault_ra) & s11_ce_l & std_logic_vector(cpu_dbg_fault_a1) & s11_dr_l & s11_pa_l;\n"
+         "                    cd_ever_seen & dma_ever_seen & dma_gpu_write_seen & std_logic_vector'(\"00000\")) & std_logic_vector(cpu_dbg_exc_epc) & std_logic_vector(cpu_dbg_exc_code) & std_logic_vector'(\"000\" & lowsled_seen) & std_logic_vector(cpu_dbg_fault_addr(23 downto 0)) & s11_ring0 & s11_ring1 & s11_ring2 & std_logic_vector(cpu_dbg_fault_a1) & s11_dr_l & s11_pa_l;\n"
          "   dbg_reached_game <= s11_reached_game;")
 
 sub(top, "   signal dbg_last_io_rd         : std_logic_vector(31 downto 0) := (others => '0');",
@@ -35,6 +35,8 @@ sub(top, "   signal dbg_last_io_rd         : std_logic_vector(31 downto 0) := (o
          "   signal s11_win : unsigned(24 downto 0) := (others => '0');\n"
          "   signal s11_ce_c, s11_if_c, s11_dr_c, s11_pa_c : unsigned(31 downto 0) := (others => '0');\n"
          "   signal s11_ce_l, s11_if_l, s11_dr_l, s11_pa_l : std_logic_vector(31 downto 0) := (others => '0');\n"
+         "   signal s11_ring0, s11_ring1, s11_ring2 : std_logic_vector(31 downto 0) := (others => '0');   -- last 3 distinct committed PCs before the first genuine fault\n"
+         "   signal s11_ent_armed, s11_ent_done : std_logic := '0';\n"
          "   signal dbg_last_io_rd         : std_logic_vector(31 downto 0) := (others => '0');")
 sub(top, "            if mem_request = '1' and mem_isData = '1' and mem_rnw = '0' then\n               dbg_last_wr_addr",
          "            if mem_request = '1' and mem_isData = '1' and mem_rnw = '1' then\n"
@@ -50,13 +52,24 @@ sub(top, "\nend architecture;",
          "         s11_win <= s11_win + 1;\n"
          "         if cache_wr(0) = '1' and cache_data = x\"00000000\" then s11_ce_c <= s11_ce_c + 1; end if;   -- instruction-cache line fills of an all-zero word (NOP sled?)\n"
          "         if mem_request = '1' and mem_isData = '0' then s11_if_c <= s11_if_c + 1; end if;\n"
-         "         if cache_wr(0) = '1' and cache_data /= x\"00000000\" then s11_dr_c <= s11_dr_c + 1; s11_pa_l <= cache_data; end if;   -- non-zero fills; last non-zero first-word\n"
+         "         if cache_wr(0) = '1' and cache_data /= x\"00000000\" then s11_dr_c <= s11_dr_c + 1; end if;   -- non-zero fills\n"
          "         if pausing = '1' or cpuPaused = '1' then s11_pa_c <= s11_pa_c + 1; end if;\n"
          "         if s11_win = 0 then\n"
          "            s11_ce_l <= std_logic_vector(s11_ce_c); s11_if_l <= std_logic_vector(s11_if_c);\n"
          "            s11_dr_l <= std_logic_vector(s11_dr_c);\n"
          "            s11_ce_c <= (others => '0'); s11_if_c <= (others => '0'); s11_dr_c <= (others => '0'); s11_pa_c <= (others => '0');\n"
          "         end if;\n"
+         "      end if;\n"
+         "   end process;\n"
+         "   -- probe3b: ring of the last 3 distinct committed PCs (frozen at the first genuine fault) and the first instruction-cache fill word of the line at 0x10000 (game entry)\n"
+         "   s11_ring_proc : process (clk1x)\n"
+         "   begin\n"
+         "      if rising_edge(clk1x) then\n"
+         "         if cpu_dbg_exc_code = \"0000\" and zn_dbg_mipspc /= s11_ring0 then\n"
+         "            s11_ring2 <= s11_ring1; s11_ring1 <= s11_ring0; s11_ring0 <= zn_dbg_mipspc;\n"
+         "         end if;\n"
+         "         if mem_request = '1' and mem_isData = '0' and mem_addressInstr(28 downto 4) = to_unsigned(16#1000#, 25) then s11_ent_armed <= '1'; end if;\n"
+         "         if s11_ent_armed = '1' and s11_ent_done = '0' and cache_wr(0) = '1' then s11_pa_l <= cache_data; s11_ent_done <= '1'; end if;\n"
          "      end if;\n"
          "   end process;\nend architecture;")
 

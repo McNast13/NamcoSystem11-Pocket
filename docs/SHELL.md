@@ -175,3 +175,14 @@ The fetch cadence (one instruction fetch request per exactly 10 clocks, data req
 Working theory: after game entry the CPU executes straight-line code that is not the game (all-zero RAM or stale/zeroed instruction-cache lines), reaches an RI/SYSCALL word, vectors to 0x80000080 (zeros) and sweeps again: irqVecCount saturates, maxRAMPC stalls.
 probe3 (build `probe3`) tests it: row 1 = last NON-ZERO instruction-cache line-fill first word, row 6 = zero-word fills per window (2^25 clk), row 9 = non-zero fills per window; rows 4, 5, 7, 8 as before. High zero count, ~no non-zero fills => the CPU runs through zeros
 (RAM not holding the image / SDRAM read path); mostly non-zero => it executes real data (control-flow bug).
+
+
+## probe3 hardware result (2026-10-21) and probe4
+probe3 photos (T1 / T2 identical in shared rows): zero-word instruction-cache fills per ~1 s window 0x947E / 0xA989 (~38-43 k), non-zero fills 1, last non-zero first-word ~0xAAAAAAAA (that value does not occur in the decompressed image; it does occur
+in the compressed ROM data), first-fault EPC 0x00094BB4 in both games (probe2 saw 0x0009416C), first fault ExcCode 0xB (coprocessor unusable) with the low-sled flag set, C76 healthy, MIPS mailbox writes 0.
+Open: instruction fetch requests run at one per 10 clocks (3.36 M/s) but only ~40 k/s are icache fills, so most fetches are NOT cached line fills (uncached fetches, i.e. kseg1/ROM, cost ~10 clocks each).
+Checks done: (1) tests via pocket/core/tb/run_ram.sh now also cover the CPU's own RAM paths - posted ch2 writes with random byte enables, read-after-write instruction-cache line fills (captured on clk3x like cpu.vhd's icache) and plain
+ch1 reads, strict SDR chip model, CL2 and CL3: PASS, so the controller/loader logic is not the culprit in simulation. (2) cpu_execute_share (the only CPU RTL patch) read through by hand: the shared add/sub/slt/shift is equivalent.
+(3) The decompressed image (tools/s11sim) holds real code/data at 0x80010000..0x801C89D4 (T2) and the words at the probe2/3 fault addresses differ between the games (data), so the two games cannot both execute the image at 0x80094BB4.
+probe4 (build `probe4`) shows: row 1 = the first instruction-cache fill word of the line at physical 0x10000 (game entry; expect 0x08065B63 in Tekken 2, 0x27BDFFE0 in Tekken 1, 0 = RAM empty there); row 5 EPC; rows 6, 8, 9 = the last three distinct
+committed PCs before the first genuine fault (newest first: sequential +4 = straight-line, a jump = real control flow); row 7 {ExcCode, low-sled flag, fault addr}; row 4 sampled PC.

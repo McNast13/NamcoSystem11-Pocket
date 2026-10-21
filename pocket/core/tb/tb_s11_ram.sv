@@ -24,7 +24,9 @@ module tb_s11_ram;
         .c76_wr(c76_wr), .c76_addr(c76_addr), .c76_data(c76_data), .ee_wr(ee_wr), .ee_addr(ee_addr), .ee_data(ee_data),
         .cfg_platform(cfg_platform), .cfg_keycus(cfg_keycus), .cfg_gun(cfg_gun), .ld_busy(ld_busy), .ld_overflow(ld_overflow));
 
-    reg [26:0] ch1_addr = 0; reg ch1_req = 0;
+    reg [26:0] ch1_addr = 0; reg ch1_req = 0; reg ch1_cache = 0;
+    reg [26:0] ch2_addr = 0; reg [31:0] ch2_din = 0; reg ch2_req = 0; reg [3:0] ch2_be = 0; wire ch2_ready;
+    wire [3:0] cache_wr; wire [31:0] cache_data; wire [7:0] cache_addr;
     wire [31:0] ch1_dout32; wire ch1_ready;
     wire [15:0] dq; wire [12:0] a; wire [1:0] ba, dqm; wire we_n, ras_n, cas_n, cke, chip_clk;
     wire ld_active = ld_busy;
@@ -34,8 +36,8 @@ module tb_s11_ram;
         .ld_valid(mem_valid), .ld_addr(mem_addr), .ld_data(mem_data), .ld_ready(mem_ready), .ld_active(ld_active),
         .refreshForce(1'b0), .ram_idle(),
         .ch1_addr(ch1_addr), .ch1_dout(), .ch1_dout32(ch1_dout32), .ch1_req(ch1_req), .ch1_dma(1'b0), .ch1_cntDMA(2'b0),
-        .ch1_cache(1'b0), .ch1_ready(ch1_ready), .cache_wr(), .cache_data(), .cache_addr(), .dma_wr(), .dma_reqprocessed(), .dma_data(),
-        .ch2_addr(27'b0), .ch2_dout(), .ch2_din(32'b0), .ch2_req(1'b0), .ch2_be(4'b0), .ch2_ready(),
+        .ch1_cache(ch1_cache), .ch1_ready(ch1_ready), .cache_wr(cache_wr), .cache_data(cache_data), .cache_addr(cache_addr), .dma_wr(), .dma_reqprocessed(), .dma_data(),
+        .ch2_addr(ch2_addr), .ch2_dout(), .ch2_din(ch2_din), .ch2_req(ch2_req), .ch2_be(ch2_be), .ch2_ready(ch2_ready),
         .ext_ch3_addr(27'b0), .ext_ch3_din(32'b0), .ext_ch3_req(1'b0), .ext_ch3_rnw(1'b0), .ext_ch3_be(4'b0),
         .ch3_dout(), .ext_ch3_ready(),
         .dmafifo_adr(27'b0), .dmafifo_data(32'b0), .dmafifo_empty(1'b1), .dmafifo_read(),
@@ -68,6 +70,13 @@ module tb_s11_ram;
     endtask
 
     reg [31:0] got;
+    // icache fill capture on clk3x (cpu.vhd writes the icache dpram with clk3x)
+    reg [31:0] cg [0:3]; reg [7:0] cga [0:3]; reg [3:0] cgot = 0; reg clr_cg = 0;
+    integer cb;
+    always @(posedge clk3) begin
+        if (clr_cg) cgot = 0;
+        else for (cb = 0; cb < 4; cb = cb + 1) if (cache_wr[cb]) begin cg[cb] = cache_data; cga[cb] = cache_addr; cgot[cb] = 1; end
+    end
     initial begin
         repeat (30) @(posedge clk1); init = 0;
         repeat (9000) @(posedge clk1);                   // controller power-up / mode register set
@@ -82,6 +91,46 @@ module tb_s11_ram;
             while (!ch1_ready) @(posedge clk1);
             got = ch1_dout32;
             if (got !== ed[i]) begin errors = errors + 1; if (errors < 10) $display("MISMATCH @%h got %h want %h", ea[i], got, ed[i]); end
+        end
+        // ---- phase 2: the CPU's own paths. Posted ch2 writes (random byte enables) into main RAM, then read back as an
+        // instruction-cache line fill (ch1_cache, 4 words via cache_wr/cache_data) and as plain ch1 reads; shadow model compares.
+        begin : phase2
+            reg [31:0] shadow [0:4095]; reg known [0:4095]; integer op, w, b, line, k2, nw, p2err; reg [31:0] nd, mask; reg [3:0] be; 
+            p2err = 0; for (w = 0; w < 4096; w = w + 1) known[w] = 0;
+            for (op = 0; op < 1500; op = op + 1) begin
+                w = {$random(seed)} % 4096; nd = $random(seed); be = (known[w] ? {$random(seed)} : 4'hF); if (be == 0) be = 4'h1;
+                @(posedge clk1); ch2_addr <= w*4; ch2_din <= nd; ch2_be <= be; ch2_req <= 1;
+                @(posedge clk1); ch2_req <= 0;
+                while (!ch2_ready) @(posedge clk1);
+                mask = {{8{be[3]}}, {8{be[2]}}, {8{be[1]}}, {8{be[0]}}};
+                shadow[w] = known[w] ? ((shadow[w] & ~mask) | (nd & mask)) : nd; known[w] = 1;
+                if ({$random(seed)} % 3 == 0) begin
+                    // read the written word back immediately as an instruction-cache fill (read-after-write): a fill starting at word w
+                    // delivers the critical word (cache_wr bit w%4, cache_addr = line) followed by the next word of the line while it exists
+                    @(posedge clk1); clr_cg <= 1; @(posedge clk1); @(posedge clk1); clr_cg <= 0;
+                    @(posedge clk1); ch1_addr <= w*4; ch1_cache <= 1; ch1_req <= 1;
+                    @(posedge clk1); ch1_req <= 0;
+                    k2 = 0;
+                    while (k2 < 200 && !cgot[w % 4]) begin @(posedge clk1); k2 = k2 + 1; end
+                    repeat (12) @(posedge clk1);
+                    ch1_cache <= 0;
+                    if (!cgot[w % 4] || cg[w % 4] !== shadow[w] || cga[w % 4] !== ((w >> 2) & 255)) begin
+                        p2err = p2err + 1; if (p2err < 10) $display("P2 CACHE MISMATCH w %0d got %h line %0d (valid %b) want %h line %0d", w, cg[w % 4], cga[w % 4], cgot[w % 4], shadow[w], (w >> 2) & 255);
+                    end
+                    for (b = (w % 4) + 1; b < 4; b = b + 1) if (known[(w & ~3) + b] && cgot[b] && cg[b] !== shadow[(w & ~3) + b]) begin
+                        p2err = p2err + 1; if (p2err < 10) $display("P2 CACHE 2nd-word MISMATCH w %0d word %0d got %h want %h", w, b, cg[b], shadow[(w & ~3) + b]);
+                    end
+                end
+            end
+            // final: every known word through plain ch1 reads
+            for (w = 0; w < 4096; w = w + 1) if (known[w]) begin
+                @(posedge clk1); ch1_addr <= w*4; ch1_cache <= 0; ch1_req <= 1;
+                @(posedge clk1); ch1_req <= 0;
+                while (!ch1_ready) @(posedge clk1);
+                if (ch1_dout32 !== shadow[w]) begin p2err = p2err + 1; if (p2err < 10) $display("P2 READ MISMATCH w %0d got %h want %h", w, ch1_dout32, shadow[w]); end
+            end
+            $display("phase2 (ch2 posted writes + cache fills + reads): errors=%0d", p2err);
+            errors = errors + p2err;
         end
         $display("words=%0d errors=%0d overflow=%b chip_errors=%0d", n, errors, ld_overflow, chip.errors);
         if (errors == 0 && !ld_overflow && chip.errors == 0) $display("PASS"); else $display("FAIL");
