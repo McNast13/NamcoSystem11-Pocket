@@ -536,7 +536,7 @@ module core_top (
     wire diag_sel = diag_vid | diag_auto;
 `endif
     wire dg_ce, dg_hs, dg_vs, dg_hbl, dg_vbl; wire [23:0] dg_rgb;
-    s11_diag diag (.clk(clk_vid), .bus(diag_bus), .extra({pc_smp_a, emu_dbg2[255:224], emu_dbg2[287:256], emu_dbg2[223:192], emu_dbg2[191:160], emu_dbg3}), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
+    s11_diag diag (.clk(clk_vid), .bus(diag_bus), .extra({pc_smp_a, emu_dbg2[255:224], emu_dbg2[95:64], emu_dbg2[223:192], emu_dbg2[191:160], emu_dbg2[159:128]}), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
 
     // ---- video: raw PSX video (or the diagnostic screen) -> APF scaler protocol (as in the PS Pocket core) ----
     wire apf_hs, apf_vs, apf_de, apf_skip;

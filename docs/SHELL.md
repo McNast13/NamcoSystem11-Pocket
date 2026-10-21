@@ -152,3 +152,14 @@ Rows (green = 1, MSB left): 0 flags | 1 C76 status {halted, resp, ever_c098, eve
 6 boot bits (see s11_bootbits.apply) | 7 {first CPU fault ExcCode[31:28], 000, low-sled seen, faulting address[23:0]} | 8 last RAM instruction-fetch PC | 9 {C76 RAM80, RAM83 (tied 0 by design), MIPS mailbox write count[15:0]}.
 Dropped from the screen: clock enables/s, fetches/s, data requests/s, paused cycles/s (they were constant), the live MIPS PC, GPUSTAT.
 Not in this build: the SDRAM readback of 0x0 / 0x2B1CE0 / 0x3FFFFC after the RAM clear (needs a ch3-arbitrated FSM; do it next if row 5/7/8 do not explain the stall).
+
+
+## probe1 hardware result (2026-10-21; photos Tekken 1 and Tekken 2, build c76fix+probe rows)
+Both photos decode identically in the shared rows (lattice-calibrated per photo; `tools/diag_decode.py` is unreliable under perspective). Rows as in the probe1 layout above.
+- **C76 is healthy on the device**: status 0x3800C151 = ever_bios(TB0 ISR ran)=1, ever_c098(TB1 mailbox ISR)=1, c352_seen=1, not halted, not derailed, PC = 0xC151 (the normal idle wait loop). resp=0 and the MIPS mailbox write count = 0 (MIPS never sends).
+- **MIPS side**: first genuine CPU fault ExcCode = 0xA (Reserved Instruction) in both games (row 7 = 0xA0000000 Tekken 1, 0xA1000000 Tekken 2: low-sled flag set only in Tekken 2), derail_src = 0 (never reached the 0xBFC07xxx wild loop),
+  boot bits unchanged 0x01700800, GPU still never touched, sampled PC 0x800466DC (T1) / 0x800316DC (T2), last RAM fetch 0x800D7Fxx (T1) / 0x800A7Fxx (T2). Platform 0x14, keycus 0 (T1) / 1 (T2), RAM cleared = 1 in both.
+- **Conclusion**: the MIPS decodes a Reserved Instruction early in game init in both games, i.e. it executes data/garbage or our CPU decoder rejects a real opcode (suspects: `cpu_execute_share`, `gte_laxer`/GTE patches, instruction-cache/SDRAM fetch integrity).
+## probe2 layout (build `probe2`): the missing facts for that RI
+Row 5 = EPC of the first fault (the faulting PC), row 6 = `cpu_dbg_fault_a1` ({irqVecCount[31:24], 000, maxRAMPC[20:0]}), row 9 = RA (r31) at the first fault; rows 0-4, 7, 8 as probe1 (boot-bits row dropped, constant; mailbox row dropped).
+Next: look up the word at EPC in the Tekken 1/2 decompressed image (tools/s11sim): if the image holds a valid opcode there, the hardware fetched/decoded it wrongly (SDRAM/icache or a CPU patch); if the image itself holds data there, control flow derailed before it (look at RA / the jump source).

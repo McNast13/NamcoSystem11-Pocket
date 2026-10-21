@@ -27,7 +27,7 @@ sub(top, "   dbg_reached_game <= s11_reached_game;",
          "   s11_boot_dbg <= (pc_reached_mid & pc_reached_gpuinit & m_gpuinit & m_strcmp & m_strfail & m_launch & m_decomp2 & s11_reached_game &\n"
          "                    rch_kernel & rch_initheap & rch_b0handler & rch_decomp & helper_entry_seen & panic_reached & gpu_accessed_seen & pio_prim_seen &\n"
          "                    dma2_prim_seen & raster_pixel_seen & imask0_write_seen & istat_ack_seen & vblank_irq_seen & irqreq_seen & io_ever_seen & spu_ever_seen &\n"
-         "                    cd_ever_seen & dma_ever_seen & dma_gpu_write_seen & std_logic_vector'(\"00000\")) & derail_src & std_logic_vector(cpu_dbg_exc_code) & std_logic_vector'(\"000\" & lowsled_seen) & std_logic_vector(cpu_dbg_fault_addr(23 downto 0)) & dbg_last_ram_pc & lowsled_src & s11_ce_l & s11_if_l & s11_dr_l & s11_pa_l;\n"
+         "                    cd_ever_seen & dma_ever_seen & dma_gpu_write_seen & std_logic_vector'(\"00000\")) & std_logic_vector(cpu_dbg_exc_epc) & std_logic_vector(cpu_dbg_exc_code) & std_logic_vector'(\"000\" & lowsled_seen) & std_logic_vector(cpu_dbg_fault_addr(23 downto 0)) & dbg_last_ram_pc & std_logic_vector(cpu_dbg_fault_ra) & s11_ce_l & std_logic_vector(cpu_dbg_fault_a1) & s11_dr_l & s11_pa_l;\n"
          "   dbg_reached_game <= s11_reached_game;")
 
 sub(top, "   signal dbg_last_io_rd         : std_logic_vector(31 downto 0) := (others => '0');",
