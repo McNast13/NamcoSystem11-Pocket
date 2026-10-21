@@ -522,7 +522,7 @@ module core_top (
         if (smp_cnt == 25'h0800000)  pc_smp_b <= emu_dbg[127:96];
     end
     // row 1 = C76 status {halted, resp, ever_c098, ever_bios, c352_seen, derailed, 00, pc[23:0]} (the live MIPS PC blurs; pc_smp_a samples it)
-    wire [127:0] diag_bus = {flags_a, emu_dbg[95:64], emu_dbg[63:32], emu_dbg[31:0]};
+    wire [127:0] diag_bus = {flags_a, emu_dbg2[31:0], emu_dbg[63:32], emu_dbg[31:0]};   // row 1: last non-zero instruction-cache fill word (probe3)
     reg  vs_wd_d = 1'b0; reg [22:0] vs_wd = 23'd0; reg diag_auto = 1'b1;
     always @(posedge clk_vid) begin
         vs_wd_d <= vid_vs;
@@ -536,7 +536,7 @@ module core_top (
     wire diag_sel = diag_vid | diag_auto;
 `endif
     wire dg_ce, dg_hs, dg_vs, dg_hbl, dg_vbl; wire [23:0] dg_rgb;
-    s11_diag diag (.clk(clk_vid), .bus(diag_bus), .extra({pc_smp_a, emu_dbg2[255:224], emu_dbg2[95:64], emu_dbg2[223:192], emu_dbg2[191:160], emu_dbg2[159:128]}), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
+    s11_diag diag (.clk(clk_vid), .bus(diag_bus), .extra({pc_smp_a, emu_dbg2[255:224], emu_dbg2[127:96], emu_dbg2[223:192], emu_dbg2[191:160], emu_dbg2[63:32]}), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
 
     // ---- video: raw PSX video (or the diagnostic screen) -> APF scaler protocol (as in the PS Pocket core) ----
     wire apf_hs, apf_vs, apf_de, apf_skip;

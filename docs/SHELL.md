@@ -163,3 +163,15 @@ Both photos decode identically in the shared rows (lattice-calibrated per photo;
 ## probe2 layout (build `probe2`): the missing facts for that RI
 Row 5 = EPC of the first fault (the faulting PC), row 6 = `cpu_dbg_fault_a1` ({irqVecCount[31:24], 000, maxRAMPC[20:0]}), row 9 = RA (r31) at the first fault; rows 0-4, 7, 8 as probe1 (boot-bits row dropped, constant; mailbox row dropped).
 Next: look up the word at EPC in the Tekken 1/2 decompressed image (tools/s11sim): if the image holds a valid opcode there, the hardware fetched/decoded it wrongly (SDRAM/icache or a CPU patch); if the image itself holds data there, control flow derailed before it (look at RA / the jump source).
+
+
+## probe2 hardware result (2026-10-21; Tekken 1 and Tekken 2 photos) and probe3
+Decoded (photos square-on; per-photo fixed lattice): rows 0-3 identical to probe1. Row 4 sampled PC 0x800645DC (T1) / 0x80057078 (T2); row 5 first-fault EPC = 0x00000000 (T1) / 0x0009416C (T2, bit 31 probably misread: 0x8009416C);
+row 6 a1 = 0xFF094170 in BOTH games => irqVecCount saturated (255+ exception-vector entries) and maxRAMPC = 0x094170 (the highest KSEG0 PC ever committed, identical in two different games); row 7 {ExcCode A, ..., lowsled seen in T2 only};
+row 8 last RAM fetch 0x800FC970 (T1) / 0x800D5370 (T2); row 9 RA = 0.
+Image check (tools/s11sim snapshots at game entry, packed tekken1/tekken2ud): T2 entry 0x80010000 = `j 0x80196D8C`; T1 entry 0x80010000 is real code (addiu sp / jal 0x800106DC). The word at 0x8009416C is data in both (T2 0x0014020C = SYSCALL encoding, T1 0x00110000);
+T1 sampled PC 0x800645DC lies in a table of 0x8010xxxx/0x8011xxxx pointers. maxRAMPC identical (0x94170) in both games and never beyond (T2's crt0 is at 0x80196D8C) => the CPU never follows the entry jump / never reaches the game proper.
+The fetch cadence (one instruction fetch request per exactly 10 clocks, data requests 0) is what a straight-line sweep through memory with a ~10-clock cache line fill looks like (NOP/benign words, no loads).
+Working theory: after game entry the CPU executes straight-line code that is not the game (all-zero RAM or stale/zeroed instruction-cache lines), reaches an RI/SYSCALL word, vectors to 0x80000080 (zeros) and sweeps again: irqVecCount saturates, maxRAMPC stalls.
+probe3 (build `probe3`) tests it: row 1 = last NON-ZERO instruction-cache line-fill first word, row 6 = zero-word fills per window (2^25 clk), row 9 = non-zero fills per window; rows 4, 5, 7, 8 as before. High zero count, ~no non-zero fills => the CPU runs through zeros
+(RAM not holding the image / SDRAM read path); mostly non-zero => it executes real data (control-flow bug).
