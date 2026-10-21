@@ -186,3 +186,25 @@ ch1 reads, strict SDR chip model, CL2 and CL3: PASS, so the controller/loader lo
 (3) The decompressed image (tools/s11sim) holds real code/data at 0x80010000..0x801C89D4 (T2) and the words at the probe2/3 fault addresses differ between the games (data), so the two games cannot both execute the image at 0x80094BB4.
 probe4 (build `probe4`) shows: row 1 = the first instruction-cache fill word of the line at physical 0x10000 (game entry; expect 0x08065B63 in Tekken 2, 0x27BDFFE0 in Tekken 1, 0 = RAM empty there); row 5 EPC; rows 6, 8, 9 = the last three distinct
 committed PCs before the first genuine fault (newest first: sequential +4 = straight-line, a jump = real control flow); row 7 {ExcCode, low-sled flag, fault addr}; row 4 sampled PC.
+
+
+## probe4 hardware result (2026-10-21/22, build probe4 = run 39687105180; photos Tekken 1 and Tekken 2) and plan for next session
+Decoded with the new `tools/diag_decode_calib.py` (fits the lattice to rows with known values; score 96/96 on both photos). Rows: 0 flags 737DFC20 / F37DFC20 (bit 31 = blink), 1 entry-line fill word, 2 C76 00C030B0, 3 platform 14008000 / 14018000 (keycus 0 / 1),
+4 sampled PC, 5 first-fault EPC, 6/8/9 last three distinct committed PCs before the first fault (newest first), 7 {ExcCode, low-sled, fault address}.
+- **Row 1 = 0 in both games**: either the line at 0x10000 was never requested through the instruction cache after reset, or its first fill word was zero. Ambiguous (the capture arms on the request and takes the next fill's first word); do not read it as "RAM empty at entry".
+- **Tekken 1**: sampled PC 0x80046D7C, EPC = 0, ring = {0x4, 0, 0} (only PCs 0 then 4 seen), row 7 = 0xA0000000 (first fault ExcCode 0xA = Reserved Instruction, no low-sled). In the decompressed Tekken 1 image RAM[0..0xC] holds the stub
+  `lui $k0,0xA000 / addiu $k0,$k0,0x800 / jr $k0` (all valid opcodes): so the CPU got a reserved instruction for a word that should be a LUI at physical 0 => the instruction fetched for address 0 is not what the boot code stored there
+  (or the first fault is a different event than assumed). The first genuine fault is therefore EARLY in boot, not at game level.
+- **Tekken 2**: sampled PC 0x80026250 (0x80066250 in a second lattice fit), first-fault ExcCode 0xB (coprocessor unusable), ring rows 6/8/9 = 0x000496A8 (or 0x000812A8) / 0x00049B00 / 0x00049B40, EPC 0x000416A4 (or 0x000936A4). The values in rows 5/6/7 differ between two equally
+  good lattice fits (only the upper bits), the 0x49Bxx rows agree. The ring PCs have bit 31 clear (kuseg alias of RAM), well below the game text at 0x80010000+; in the image those words are data.
+- Interpretation so far: the CPU takes a genuine fault (RI in T1, CpU in T2) very early, executing low-RAM addresses (0, 4 / 0x49Bxx), i.e. the boot-ROM/kernel-stub phase, before the game proper runs. The probe shows the FIRST fault only, so everything after it
+  (irqVecCount saturated, sweeps) is downstream. Consistent with the earlier facts: C76 healthy, MIPS mailbox writes 0, GPU untouched, boot bits 0x01700800.
+### Next session, ranked
+1. Direct RAM readback on the device: a small ch3-arbitrated FSM (idle slots only, after ram_cleared and a few seconds of run) reading physical words 0x0, 0x4, 0x8, 0x10000 and 0x49B00 and showing them; compare with the simulator's image (T1: 3C1AA000 275A0800 03400008). This says whether
+   RAM holds what the CPU wrote (write path / SDRAM) and whether instruction fetch returns it (icache). Tekken 1 and 2 both.
+2. Make the first-fault capture trustworthy: also latch the boot-bits word and a free-running clock count at the first fault (early or late?), and the instruction word at EPC (opcode1), plus count faults by ExcCode. Photo reads of rows 5-9 are uncertain in the upper bits: show each of
+   these 32-bit words twice (second copy inverted) or add a parity box so a mis-fit lattice is detectable.
+3. Free: dual-DUT RTL simulation of cpu.vhd (reference vs `cpu_execute_share`) with the Tekken 1 snapshot RAM and a simple memory model (compare committed PCs). The shared ALU was hand-checked equivalent but never simulated.
+4. A/B hardware build without `cpu_execute_share` (and, if needed, without `ps_patches`) - only if 1-3 point at the CPU.
+5. Check isolate-cache / icache invalidate behaviour against what the boot code does (it writes kernel stubs to RAM then executes them; a stale icache line would return the wrong word at PC 0 exactly as T1 suggests).
+State of the SD card: build probe4 installed (bitstream.rbf_r + interact.json), tekken1.json and tekken2ud.json in Assets/namco_system11/common/.
