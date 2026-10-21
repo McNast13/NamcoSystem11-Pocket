@@ -141,3 +141,14 @@ Fix: one idle clock between the halves (`S_MID` in `s11_ioctl_bridge.v`); `tb_io
 Consequences: with a corrupted BIOS the C76 never handshakes, so the MIPS side waiting for it would derail exactly as observed; resume plan items 3 (A/B area variants) and the C76 half of 2 are deferred until a build with this fix is
 tried. Keep the RAM zero-fill / SDRAM probes (plan 2d/4) for the next build in case the game still derails. Also check every other consumer of the bridge for the same back-to-back assumption (EEPROM path, SPROG/wave SDRAM path both
 accept either spacing; config word is consumed by `zn_platform_r` capture - not re-checked).
+
+
+## Diagnostic screen layout from build `probe1` (2026-10-21, after the C76 BIOS fix)
+Hardware result of build c76fix (photo): C76 first PC 0xC030, `ever_sprog`=1, C352 written, not halted (before the fix: parked at 0xC1BD, ever_sprog=0) => the C76 BIOS load is fixed on the device.
+MIPS side unchanged: boot bits 0x01700800, ~0x333332E fetches/s, 0 data requests/s, sampled PC ~0x8004144C (Tekken 1, near the EEPROM verify/compare code).
+Photo decoding note: `tools/diag_decode.py` drifts by a column under perspective; take photos square-on and upright, whole grid in frame.
+Rows (green = 1, MSB left): 0 flags | 1 C76 status {halted, resp, ever_c098, ever_bios, c352_seen, derailed, 00, pc[23:0]} | 2 C76 first PC + {ever_sprog, halted, c352, reached_game} |
+3 platform, keycus, {ram_cleared, reset, ioctl_download, sdram_req, readack, writeack, ch3_done, clr_active} | 4 sampled MIPS PC | 5 derail source PC (before the first fetch into the wild loop 0xBFC07xxx) |
+6 boot bits (see s11_bootbits.apply) | 7 {first CPU fault ExcCode[31:28], 000, low-sled seen, faulting address[23:0]} | 8 last RAM instruction-fetch PC | 9 {C76 RAM80, RAM83 (tied 0 by design), MIPS mailbox write count[15:0]}.
+Dropped from the screen: clock enables/s, fetches/s, data requests/s, paused cycles/s (they were constant), the live MIPS PC, GPUSTAT.
+Not in this build: the SDRAM readback of 0x0 / 0x2B1CE0 / 0x3FFFFC after the RAM clear (needs a ch3-arbitrated FSM; do it next if row 5/7/8 do not explain the stall).

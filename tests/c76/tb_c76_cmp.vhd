@@ -127,6 +127,7 @@ begin
       variable v : std_logic_vector(7 downto 0);
       variable hv : integer;
       variable n : integer := 0;
+      variable got_first : boolean := false;
       variable last_mile : std_logic_vector(23 downto 0) := (others => '0');
       variable cmp_n : integer := 0;
       variable a_c279, b_c279, a_c31f, b_c31f, a_tog, b_tog : integer := 0;
@@ -156,6 +157,7 @@ begin
          wait for 1 ns;
          if reset = '0' then
             cmp_n := cmp_n + 1;
+            if a_val = '1' and not got_first then got_first := true; report "first valid pc ref=" & to_hstring(a_pc) & " dut=" & to_hstring(b_pc) & " at clk " & integer'image(c); end if;
             if c mod 200000 = 0 then report "t=" & integer'image(c) & " ref pc=" & to_hstring(a_pc) & " dut pc=" & to_hstring(b_pc) & " ram83 ref/dut=" & to_hstring(a_r83) & "/" & to_hstring(b_r83); end if;
             if (a_addr /= b_addr or a_rd /= b_rd or a_wr /= b_wr or (a_wr = '1' and a_dout /= b_dout) or a_pc /= b_pc) and first_mm then
                first_mm := false;

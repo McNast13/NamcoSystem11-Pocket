@@ -54,7 +54,8 @@ sub("\tinput         OSD_STATUS\n);",
 \toutput [31:0] PK_EE_Q,
 \toutput        PK_EE_SAVE_REQ,
 \toutput [127:0] PK_DBG,
-\toutput [287:0] PK_DBG2
+\toutput [287:0] PK_DBG2,
+\toutput [31:0] PK_DBG3
 );""")
 # EEPROM save-back: the read-back port of zn1_io is driven by core_top instead of the hps_io upload
 sub("wire       ee_up_rd   = ioctl_upload & (ioctl_index == 8'd9);", "wire       ee_up_rd   = PK_EE_RD;")
@@ -119,7 +120,8 @@ assign PK_VID_B = b;
 assign PK_EE_Q = ee_up_q;
 assign PK_EE_SAVE_REQ = ioctl_upload_req;
 assign PK_DBG2 = s11_boot_dbg;   // s11_bootbits.apply: boot bits | derail source PC | {exc code, low-sled flag, fault addr} | last RAM fetch PC | low-sled jump source
-assign PK_DBG = {zn_dbg_mipspc, zn_dbg_gpustat, c76_first_pc, c76_ever_sprog, c76_halted, c76_c352_seen, dbg_reached_game, 4'd0, zn_platform_r, zn_keycus_id, ram_cleared, reset, ioctl_download, sdram_req, sdram_readack, sdram_writeack, sdramCh3_done, clr_active, 8'd0};
+assign PK_DBG3 = c76_mbstat;   // {C76 RAM80, RAM83, MIPS mailbox write count}
+assign PK_DBG = {zn_dbg_mipspc, c76_status, c76_first_pc, c76_ever_sprog, c76_halted, c76_c352_seen, dbg_reached_game, 4'd0, zn_platform_r, zn_keycus_id, ram_cleared, reset, ioctl_download, sdram_req, sdram_readack, sdram_writeack, sdramCh3_done, clr_active, 8'd0};
 """ + t[m[0].start():]
 p.write_text(t)
 print("SYSTEM11.sv: PLLs and hps_io replaced by PK_* ports")
