@@ -39,7 +39,7 @@ def main():
     (a.out / "Platforms/_images/namco_system11.bin").write_bytes(solid(521, 165, 0x2104))
 
     (plat / "namco_system11.json").write_text(json.dumps(
-        {"platform": {"category": "Arcade", "name": "Namco System 11", "manufacturer": "Namco", "year": 1994}}, indent=2) + "\n")
+        {"platform": {"category": "Arcade Multi", "name": "Namco System 11", "manufacturer": "Namco", "year": 1994}}, indent=2) + "\n")
 
     if a.packed:
         if not a.instance:
