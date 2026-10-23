@@ -3,12 +3,62 @@
 Port of [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) (itself derived from
 [PSX_MiSTer](https://github.com/MiSTer-devel/PSX_MiSTer)) to the Analogue Pocket.
 
-**Status:** experimental. Tekken 1 boots and runs its attract mode on a real Pocket (3D fights render). Not yet playable:
-Start is being fixed, some polygons are still missing, and there are no FMVs (MDEC is left out to fit the FPGA, about 98% of its
-ALMs used). See [docs/SHELL.md](docs/SHELL.md) for the architecture and the full bring-up log, and
-[docs/BASELINE.md](docs/BASELINE.md) for the measurements. **First goal:** playable Tekken 2 (TES3 VER.D / TES2 VER.D).
+**Status:** experimental. Tekken (Asia, TE4 Ver.C) is playable on a real Pocket: intro FMV, credits, player select and fights.
+Some polygons still drop out at some angles, and the design uses about 98% of the FPGA. No other game has been tested on the Pocket
+yet. See [docs/SHELL.md](docs/SHELL.md) for the architecture and the full bring-up log, and
+[docs/BASELINE.md](docs/BASELINE.md) for the measurements. **Next goal:** playable Tekken 2 (TES3 VER.D / TES2 VER.D).
 
-Build and package: `tools/local_build.sh` (local Quartus in Docker, see [docs/LOCAL_BUILD.md](docs/LOCAL_BUILD.md)) or GitHub
+## Installing
+
+### The core
+
+1. Get the core zip from this repository's [Releases](https://github.com/McNast13/NamcoSystem11-Pocket/releases) page (none yet;
+   until then, build it yourself as described under [Building](#building)).
+2. Unzip it onto the root of the Pocket's SD card. It adds `Cores/McNast13.NamcoSystem11/` and `Platforms/namco_system11.json`.
+3. The core appears in the Pocket's **openFPGA > Arcade Multi** menu as **Namco System 11**.
+
+### BIOS and ROM files
+
+No ROMs or BIOS files are included. You need your own MAME ROM sets (as zips):
+
+| Game | MAME zip(s) | MRA file (in the SYSTEM11_MiSTer submodule) |
+|---|---|---|
+| Tekken (Asia TE4 Ver.C), **tested** | `tekken.zip` (merged set containing the `tekkenac` files) | `releases/_Arcade/_alternatives/_Tekken/Tekken (Asia TE4 Ver.C).mra` |
+| Tekken (TE2 Ver.C) | `tekken.zip` | `releases/_Arcade/Tekken (TE2 Ver.C).mra` |
+| Tekken 2 Ver.B (TES2-VER.D) | `tekken2.zip` | `releases/_Arcade/Tekken 2 Ver.B (TES2-VER.D).mra` |
+| Soul Edge Ver. II, Dunk Mania, Xevious 3D-G, Prime Goal EX, Star Sweep, Dancing Eyes, Pocket Racer, Point Blank 2, My Angel 3 | the MAME zip named in each MRA | `releases/_Arcade/*.mra` |
+
+Every game also needs the **C76 sound CPU BIOS**, `namcoc76.zip` (it contains `c76.bin`). The MRA files name the exact files and
+CRCs; the packer checks every CRC and stops if one is wrong or missing, so a mismatched or incomplete zip is reported, not loaded.
+The MRA files come from the [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) core this port is based on.
+
+### Installing a game
+
+The Pocket cannot read MAME zips directly, so each game is converted once on a computer (Python 3 needed):
+
+1. Clone this repository with the MiSTer core submodule:
+   ```
+   git clone https://github.com/McNast13/NamcoSystem11-Pocket
+   cd NamcoSystem11-Pocket
+   git submodule update --init references/SYSTEM11_MiSTer
+   ```
+2. Put the game's zip and `namcoc76.zip` in one folder, for example `~/roms`.
+3. Run the packer with the game's MRA, the ROM folder, an output folder and a short name for the game:
+   ```
+   python3 tools/rom_packer.py "references/SYSTEM11_MiSTer/releases/_Arcade/_alternatives/_Tekken/Tekken (Asia TE4 Ver.C).mra" \
+       --roms ~/roms --out ~/packed/tekken1 --instance tekken1
+   ```
+   This writes `tekken1.json` and the `rom_*.bin` files into `~/packed/tekken1`.
+4. Copy them to the SD card:
+   - `tekken1.json` into `Assets/namco_system11/common/`
+   - the `rom_*.bin` files into `Assets/namco_system11/common/tekken1/` (a folder named after the game)
+5. On the Pocket, open **Namco System 11** and pick the game from the list.
+
+Game settings (the EEPROM) start blank at every launch for now, so changes made in the game's test menu are not kept yet.
+
+## Building
+
+To build and package, use `tools/local_build.sh` (local Quartus in Docker, see [docs/LOCAL_BUILD.md](docs/LOCAL_BUILD.md)) or GitHub
 Actions (`pocket-shell.yml` with `project=s11full`). `tools/build_core_tree.py` assembles the source tree, Quartus compiles
 `pocket/project/s11full`, `tools/package_pocket.py` makes the SD-card tree, and
 `tools/rom_packer.py GAME.mra --roms DIR --out DIR --instance NAME` turns your own MAME ROM zips into the data-slot files and
