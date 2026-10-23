@@ -5,3 +5,15 @@ build/
 *.rbf_r
 pocket/build/
 pocket/project/s11full.qsf
+# local Quartus builds (tools/local_build.sh)
+build-*.log
+pocket/package-*/
+pocket/project/db/
+pocket/project/incremental_db/
+pocket/project/output_files/
+pocket/platform/pocket/build_id.mif
+.DS_Store
+pocket/project/*.qsf.orig
+pocket/project/*.cdf
+pocket/project/c5_pin_model_dump.txt
+__pycache__/

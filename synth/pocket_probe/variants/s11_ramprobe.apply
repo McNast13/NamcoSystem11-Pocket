@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Bring-up probe (probe5-7): on-device RAM/ROM readback. A small FSM in SYSTEM11.sv takes the (otherwise tied-off) ch3 'sentinel' slot, only while the
+C76 SPROG/wave readers are idle, and reads physical words 0x0 and 0x10000 of main RAM in a loop (~every 2 ms each, after the RAM zero-fill).
+Probe8 rows: 1 = RAM[0x0] (expect 3C1AA000 once booted, Tekken 1), 6 = RAM[0x10000] (expect 27BDFFE0), 8 = data and 9 = address of the first ch1 read after reset
+(the CPU reset-vector fetch: expect address 0x400000, data 3C080013). Probe7 showed the boot ROM in SDRAM intact but the first read at address 0x10. Probe5/6 showed main RAM at 0x0 and 0x10000 still zero after 60 s (see docs/SHELL.md).
+Run AFTER pocket_emu.apply (it rewrites the PK_DBG2 assign). Usage: s11_ramprobe.apply OUTDIR
+"""
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1]) / "SYSTEM11.sv"
+t = p.read_text()
+
+def sub(old, new):
+    global t
+    assert t.count(old) == 1, (old, t.count(old))
+    t = t.replace(old, new)
+
+sub("""wire [26:0] sent_addr  = 27'd0;
+wire [31:0] sent_din   = 32'd0;
+wire        sent_req   = 1'b0;
+wire        sent_rnw   = 1'b1;
+wire [3:0]  sent_be    = 4'b1111;
+wire        sentinel_active = 1'b0;
+""", """reg  [26:0] sent_addr  = 27'd0;
+wire [31:0] sent_din   = 32'd0;
+reg         sent_req   = 1'b0;
+wire        sent_rnw   = 1'b1;
+wire [3:0]  sent_be    = 4'b1111;
+reg         sentinel_active = 1'b0;
+// s11_ramprobe.apply (probe8): main-RAM words 0x0 and 0x10000 through the ch3 sentinel slot, plus the address and data of the first CPU-side ch1 read after the RAM zero-fill / reset release
+reg  [27:0] rb_t = 28'd0;
+reg         rb_idx = 1'b0;
+reg         rb_wait = 1'b0;
+reg  [15:0] rb_gap = 16'd0;
+reg  [31:0] rb_w0 = 32'hDEAD0000, rb_w3 = 32'hDEAD1000;
+reg  [31:0] rb_a1 = 32'hDEAD2000, rb_d1 = 32'hDEAD3000;   // first ch1 read after reset: address and data
+reg  [1:0]  rb_c1 = 2'd0;
+always @(posedge clk_1x) begin
+   sent_req <= 1'b0;
+   if (ram_cleared && ~rb_t[26]) rb_t <= rb_t + 1'b1;
+   if (rb_gap != 16'd0) rb_gap <= rb_gap - 1'b1;
+   if (~rb_wait) begin
+      if (rb_t[26] && rb_gap == 16'd0 && sprog_st == 2'd0 && wave_st == 2'd0 && ~c76_sprog_rd && ~c76_wave_rd && ~clr_active &&
+          ~(bios_download | fixedrom_download | bankedrom_download | sprog_download | wave_download)) begin
+         sent_addr <= rb_idx ? 27'h10000 : 27'h0;
+         sentinel_active <= 1'b1; sent_req <= 1'b1; rb_wait <= 1'b1;
+      end
+   end else if (sdramCh3_done) begin
+      if (rb_idx) rb_w3 <= cheats_din; else rb_w0 <= cheats_din;
+      sentinel_active <= 1'b0; rb_wait <= 1'b0; rb_idx <= ~rb_idx; rb_gap <= 16'hFFFF;
+   end
+   // first ch1 read after the core leaves reset (the CPU's reset-vector fetch)
+   case (rb_c1)
+      2'd0: if (ram_cleared && ~reset && sdram_req && sdram_rnw) begin rb_a1 <= {5'd0, sdram_addr}; rb_c1 <= 2'd1; end
+      2'd1: if (sdram_readack) begin rb_d1 <= sdr_sdram_dout32; rb_c1 <= 2'd2; end
+      default: ;
+   endcase
+end
+""")
+# rows: 1 = RAM[0x0], 6 = RAM[0x10000], 8 = data of the first ch1 read after reset, 9 = its address; rows 5 (EPC), 7 (fault code), 4 (sampled PC) unchanged
+sub("assign PK_DBG2 = s11_boot_dbg;",
+    "assign PK_DBG2 = {s11_boot_dbg[287:192], rb_w3, rb_d1, rb_a1, s11_boot_dbg[95:32], rb_w0};")
+p.write_text(t)
+print("s11_ramprobe applied")

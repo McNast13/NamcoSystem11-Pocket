@@ -16,9 +16,9 @@ VARIANTS = ROOT / "synth/pocket_probe/variants"
 ARGS = [str(ROOT / "references/openfpga-PlayStation"), str(ROOT / "references/Laxer-PS-GTE"), str(ROOT / "references/PSX_MiSTer")]
 
 # Same order as the probe runs that measured 18,0xx ALMs / closed clk_2x timing (host-side .apply scripts only).
-APPLY = ["gte_laxer", "ps_patches", "gpu_divider_pool", "gpu_area_reg", "gpu_rect_timing", "gpu_read_late",
+APPLY = ["gte_laxer", "ps_gte", "ps_patches", "ps_gpu_recip", "gpu_area_reg", "gpu_rect_timing", "gpu_read_late",
          "cpu_execute_share", "c76_sfr_ram", "c352_tag_ram", "no_texfilter",
-         "drop_scaffold", "drop_scaffold2", "drop_scaffold3", "drop_guns", "s11_bootbits"]
+         "drop_scaffold", "savestates_reset_only", "drop_scaffold2", "drop_scaffold3", "drop_guns", "eeprom_blank", "s11_bootbits"]
 
 
 def main():
@@ -28,7 +28,8 @@ def main():
     shutil.copytree(REF, out, ignore=shutil.ignore_patterns(".git", "releases", "art", "*.md"))
     (out / "build_id.v").write_text('`define BUILD_DATE "000000"\n')
 
-    apply = list(APPLY)
+    skip = set(filter(None, os.environ.get("S11_SKIP", "").split(",")))   # A/B builds: S11_SKIP=cpu_execute_share,...
+    apply = [v for v in APPLY if v not in skip]
     for v in apply:
         script = VARIANTS / f"{v}.apply"
         r = subprocess.run([sys.executable, str(script), str(out), *ARGS], cwd=ROOT, capture_output=True, text=True)
@@ -55,6 +56,13 @@ def main():
         sys.exit(f"pocket_emu.apply failed:\n{r.stdout}\n{r.stderr}")
     print("applied pocket_emu:", r.stdout.strip())
 
+    # probes that must run after pocket_emu.apply (S11_PROBES=s11_ramprobe,...)
+    for v in filter(None, os.environ.get("S11_PROBES", "").split(",")):
+        r = subprocess.run([sys.executable, str(VARIANTS / f"{v}.apply"), str(out)], cwd=ROOT, capture_output=True, text=True)
+        if r.returncode:
+            sys.exit(f"{v}.apply failed:\n{r.stdout}\n{r.stderr}")
+        print(f"applied {v}")
+
     (out / "core_tree.qip").write_text(
         'set_global_assignment -name SEARCH_PATH [file join $::quartus(qip_path) .]\n'
         'set_global_assignment -name QIP_FILE [file join $::quartus(qip_path) rtl/psx.qip]\n'
@@ -66,7 +74,11 @@ def main():
         'set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) SYSTEM11.sv]\n')
     print("wrote", out / "core_tree.qip")
 
-    # the full-core project revision: the shell project with the full core instead of the skeleton
+    # the full-core project revision: the shell project with the full core instead of the skeleton.
+    # Only for the real tree: a scratch tree (checks, tests) must not rewrite the .qsf of a compile that may be running.
+    if out != (ROOT / "pocket/build/core_tree").resolve():
+        print("scratch tree: pocket/project/s11full.qsf left alone")
+        return
     proj = ROOT / "pocket/project"
     q = (proj / "s11.qsf").read_text()
     assert q.count("QIP_FILE ../core/core.qip") == 1

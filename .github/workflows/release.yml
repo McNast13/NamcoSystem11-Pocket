@@ -1,0 +1,146 @@
+name: Release
+# Builds the game core (no diagnostic screen) with the release recipe, tries several fitter seeds in parallel, keeps the seed that fits
+# with the best worst-case slack, stamps the version into core.json and publishes a GitHub release with the SD-card zip (no ROMs).
+# Trigger: push a tag like v0.1.0, or run it by hand (Actions -> Release -> Run workflow) with a tag name.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "release tag (created on the current commit if it does not exist), e.g. v0.1.0"
+        required: true
+      seeds:
+        description: "fitter seeds to try, JSON list"
+        default: "[44, 99, 22]"
+      prerelease:
+        description: "mark as pre-release"
+        type: boolean
+        default: true
+      draft:
+        description: "create as draft (publish by hand after checking)"
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+env:
+  # Release recipe = the game build tested on the device (leannopool44 + eeprom_blank, which is in the default variant list):
+  # no MDEC (does not fit with it yet), no gpu_divider_pool (drops polygons), no bring-up probe export, outputs on the rising edge.
+  S11_NO_MDEC: "1"
+  S11_SKIP: gpu_divider_pool,s11_bootbits
+  S11_PROBES: s11_dbg2_zero
+  QSF_MACROS: 'set_global_assignment -name VERILOG_MACRO "S11_POSEDGE_OUT=1"'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: ${{ fromJSON(inputs.seeds || '[44, 99, 22]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: git submodule update --init --depth 1 references/SYSTEM11_MiSTer references/openfpga-PlayStation references/Laxer-PS-GTE references/PSX_MiSTer
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache
+      - name: Core source tree
+        run: python3 tools/build_core_tree.py pocket/build/core_tree
+      - name: Seed and macros
+        run: printf '\nset_global_assignment -name SEED %s\n%s\n' "${{ matrix.seed }}" "$QSF_MACROS" >> pocket/project/s11full.qsf
+      - name: Compile
+        shell: bash
+        run: |
+          docker run --rm -v "$PWD/pocket:/pocket" -w /pocket/project raetro/quartus:pocket \
+            sh -c "quartus_sh --flow compile s11full; quartus_sta -t report_paths.tcl s11full" | tee build.log || true
+      - name: Result
+        id: result
+        shell: bash
+        run: |
+          mkdir -p cand
+          if ls pocket/project/output_files/s11full.rbf >/dev/null 2>&1; then
+            python3 tools/package_pocket.py --rbf pocket/project/output_files/s11full.rbf --out cand/package
+            # worst slack over every model/clock/check in the STA summary (more negative = worse)
+            worst=$(grep -E '^Slack' pocket/project/output_files/s11full.sta.summary | awk '{print $3}' | sort -g | head -1)
+            echo "${worst:-0}" > cand/slack
+          else
+            echo "nofit" > cand/slack
+          fi
+          echo "${{ matrix.seed }}" > cand/seed
+          cp pocket/project/output_files/s11full.fit.summary pocket/project/output_files/s11full.sta.summary cand/ 2>/dev/null || true
+          { echo "seed ${{ matrix.seed }}: worst slack $(cat cand/slack)"; echo '```'; cat cand/s11full.fit.summary 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cand-${{ matrix.seed }}
+          path: |
+            cand
+            build.log
+
+  release:
+    needs: build
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cand-*
+          path: cands
+      - name: Pick the best seed
+        id: pick
+        shell: bash
+        run: |
+          best=""; best_slack=""
+          for d in cands/cand-*/cand; do
+            s=$(cat "$d/slack"); echo "seed $(cat $d/seed): $s"
+            [ "$s" = nofit ] && continue
+            if [ -z "$best" ] || awk -v a="$s" -v b="$best_slack" 'BEGIN{exit !(a>b)}'; then best=$d; best_slack=$s; fi
+          done
+          [ -n "$best" ] || { echo "::error::no seed fitted the device"; exit 1; }
+          echo "dir=$best" >> "$GITHUB_OUTPUT"
+          echo "seed=$(cat $best/seed)" >> "$GITHUB_OUTPUT"
+          echo "slack=$best_slack" >> "$GITHUB_OUTPUT"
+      - name: Stamp version and zip
+        id: zip
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          pkg=${{ steps.pick.outputs.dir }}/package
+          python3 - "$pkg/Cores/McNast13.NamcoSystem11/core.json" "${TAG#v}" <<'EOF'
+          import json, sys, datetime
+          p, ver = sys.argv[1], sys.argv[2]
+          j = json.load(open(p))
+          j["core"]["metadata"]["version"] = ver
+          j["core"]["metadata"]["date_release"] = datetime.date.today().isoformat()
+          json.dump(j, open(p, "w"), indent=2)
+          EOF
+          zip_name="NamcoSystem11-Pocket-${TAG}.zip"
+          (cd "$pkg" && zip -r "$GITHUB_WORKSPACE/$zip_name" Cores Platforms)
+          echo "zip=$zip_name" >> "$GITHUB_OUTPUT"
+      - name: Release notes
+        shell: bash
+        run: |
+          d=${{ steps.pick.outputs.dir }}
+          {
+            echo "Experimental Namco System 11 core for the Analogue Pocket."
+            echo
+            echo "Unzip onto the root of the SD card. ROMs are not included: pack your own with tools/rom_packer.py (see README)."
+            echo
+            echo "Build: fitter seed ${{ steps.pick.outputs.seed }}, worst-case timing slack ${{ steps.pick.outputs.slack }} ns, no MDEC (no FMV)."
+            echo
+            echo '<details><summary>Fit summary</summary>'
+            echo; echo '```'; cat "$d/s11full.fit.summary" 2>/dev/null; echo '```'; echo '</details>'
+          } > notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          flags=""
+          [ "${{ github.event_name }}" = push ] || [ "${{ inputs.prerelease }}" = true ] && flags="$flags --prerelease"
+          [ "${{ inputs.draft }}" = true ] && flags="$flags --draft"
+          gh release create "$TAG" "${{ steps.zip.outputs.zip }}" --target "$GITHUB_SHA" --title "$TAG" --notes-file notes.md --generate-notes $flags

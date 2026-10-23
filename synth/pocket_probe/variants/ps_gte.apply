@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+"""GuardianSoul's GTE area patches (openfpga-PlayStation full_pocket + 0.5.x M10K moves) on the Laxer GTE that gte_laxer.apply installed.
+
+In the PS order: gte_control_ram (CFC2/MFC2 shadows), gte_matrix_ram (rotation/light/colour matrices), gte_add_table (TR/BK/FC/offset
+vectors), gte_vector_ram (V0-V2), gte_multicycle (engine reset gated by clk2xIndex so the two-cycle engine-to-engine SDC in
+pocket/core/core_constraints.sdc holds unconditionally), gte_m10k and gte_shadow_m10k (those tables from asynchronous MLABs into
+falling-edge block RAM). Before this the S11 build had none of them: PocketGTERegs alone held 1,618 registers.
+Usage: ps_gte.apply OUTDIR ...   (run after gte_laxer.apply)
+"""
+import importlib, sys
+from pathlib import Path
+
+gte = Path(sys.argv[1]) / "rtl/laxer_gte"
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
+import ps_patch_survey  # noqa: E402,F401  (puts build/ps_root/scripts on sys.path)
+
+STEPS = [("prepare_gte_control_ram", "control_ram_text", "GTERegs.sv"), ("prepare_gte_control_ram", "data_ram_text", "GTERegs.sv"),
+         ("prepare_gte_matrix_ram", "compute_path_text", "GTEComputePath.sv"), ("prepare_gte_matrix_ram", "engine_text", "GTEEngine.sv"),
+         ("prepare_gte_add_table", "add_table_text", "GTEComputePath.sv"),
+         ("prepare_gte_vector_ram", "vector_ram_text", "GTEComputePath.sv"),
+         ("prepare_gte_multicycle", "adapter_text", "laxer_mister_adapter.sv"),
+         ("prepare_gte_m10k", "gte_m10k_text", "GTEComputePath.sv"),
+         ("prepare_gte_shadow_m10k", "shadow_m10k_text", "GTERegs.sv")]
+for mod, fn, name in STEPS:
+    p = gte / name
+    t = p.read_text()
+    n = getattr(importlib.import_module(mod), fn)(t)
+    assert n != t, (mod, fn, name)
+    p.write_text(n)
+print("ps_gte: control/data ram, matrix ram, add table, vector ram, multicycle, m10k, shadow m10k")

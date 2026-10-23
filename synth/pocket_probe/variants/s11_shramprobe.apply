@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""Bring-up probe (probe11): the Start bytes in the C76 shared RAM, compared with a MAME reference run (tekkenac, 2 coins, Start held).
+MAME, while Start is held: BD03 = BD83 = 0x80 (P1 inverted), BDB0 = 0x7F (raw P1), BD9F goes FF -> 00 (the press being taken);
+as 16-bit MIPS words (low byte = even address): BD02 = 0x8000, BD82 = 0x8000, BD9E = 0xFF80 -> 0x0080, BDB0 = 0xFF7F.
+probe10 saw the C76 write 0x80 to BD83 but the MIPS read 0x??80 there. This captures each side of those four locations.
+MAME read/write logs (MIPS, around Start): it reads the halfword BD02 = {BD03 level, BD02 edge}: 0x8080 for two reads at the press,
+then 0x8000 while held; it only does halfword stores, and writes BD00 = 0xFF80 three times when the press is accepted (else 0xFF00).
+Rows (diagnostic screen, needs S11_FORCE_DIAG):
+  7 = {last C76 byte written to BD03, last NON-ZERO C76 byte written to BD02, C76 non-zero writes to BD02 [15:8], last C76 byte to BDB0}
+  1 = {last MIPS write to word BD00 [31:16], MIPS writes of 0xFF80 to BD00 [15:0]}
+  6 = {MIPS-side word BD02 while Start held [31:16], MIPS reads of BD02 with the edge byte (low) non-zero [15:0]}
+  8 = {word BD82 while held, word BDB0 while held}
+  9 = {word BD02 while released [31:16], MIPS reads of word BD02 [15:0]}
+Rows 4/5 unchanged. Run AFTER pocket_emu.apply (it rewrites the PK_DBG2 assign). Usage: s11_shramprobe.apply OUTDIR
+"""
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+
+
+def sub(path, old, new):
+    t = path.read_text()
+    assert t.count(old) == 1, (path.name, old, t.count(old))
+    path.write_text(t.replace(old, new))
+
+
+c = out / "rtl/c76_sound.vhd"
+sub(c, "      dbg_c76resp      : out std_logic_vector(31 downto 0) := (others=>'0')\n   );",
+       "      dbg_c76resp      : out std_logic_vector(31 downto 0) := (others=>'0');\n"
+       "      dbg_in           : out std_logic_vector(159 downto 0) := (others=>'0')   -- s11_shramprobe.apply\n   );")
+sub(c, "\nend architecture;",
+       "\n   -- s11_shramprobe.apply: both sides of the shared-RAM Start bytes\n"
+       "   shramprobe : process(clk)\n"
+       "      variable c_bd03, c_bd02, c_bdb0 : std_logic_vector(7 downto 0) := (others => '0');\n"
+       "      variable c_cnt02 : unsigned(7 downto 0) := (others => '0');\n"
+       "      variable m_w00 : std_logic_vector(15 downto 0) := (others => '0');\n"
+       "      variable m_cnt80, rd_edge, rd_02 : unsigned(15 downto 0) := (others => '0');\n"
+       "      variable h_02, h_82, h_b0, r_02 : std_logic_vector(15 downto 0) := (others => '0');\n"
+       "      variable addr_d : std_logic_vector(13 downto 0) := (others => '0');\n"
+       "      variable rd_d : std_logic := '0';\n"
+       "      variable held : boolean;\n"
+       "   begin\n"
+       "      if rising_edge(clk) then\n"
+       "         if ce = '1' and ext_wr = '1' and sel_shared = '1' then\n"
+       "            case to_integer(c76_idx) is\n"
+       "               when 16#7D03# => c_bd03 := ext_dout;\n"
+       "               when 16#7D02# => if ext_dout /= x\"00\" then c_bd02 := ext_dout; if c_cnt02 /= x\"FF\" then c_cnt02 := c_cnt02 + 1; end if; end if;\n"
+       "               when 16#7DB0# => c_bdb0 := ext_dout;\n"
+       "               when others => null;\n"
+       "            end case;\n"
+       "         end if;\n"
+       "         if mips_wr = '1' and to_integer(unsigned(mips_addr)) = 16#3E80# then\n"
+       "            m_w00 := mips_din;\n"
+       "            if mips_din = x\"FF80\" and m_cnt80 /= x\"FFFF\" then m_cnt80 := m_cnt80 + 1; end if;\n"
+       "         end if;\n"
+       "         held := in_player1(7) = '0';\n"
+       "         if rd_d = '1' then\n"
+       "            case to_integer(unsigned(addr_d)) is\n"
+       "               when 16#3E81# =>\n"
+       "                  if rd_02 /= x\"FFFF\" then rd_02 := rd_02 + 1; end if;\n"
+       "                  if mips_dout(7 downto 0) /= x\"00\" and rd_edge /= x\"FFFF\" then rd_edge := rd_edge + 1; end if;\n"
+       "                  if held then h_02 := mips_dout; else r_02 := mips_dout; end if;\n"
+       "               when 16#3EC1# => if held then h_82 := mips_dout; end if;\n"
+       "               when 16#3ED8# => if held then h_b0 := mips_dout; end if;\n"
+       "               when others => null;\n"
+       "            end case;\n"
+       "         end if;\n"
+       "         addr_d := mips_addr;\n"
+       "         rd_d := not mips_wr and not dbg_rb_en;\n"
+       "         dbg_in <= c_bd03 & c_bd02 & std_logic_vector(c_cnt02) & c_bdb0 &\n"
+       "                   m_w00 & std_logic_vector(m_cnt80) &\n"
+       "                   h_02 & std_logic_vector(rd_edge) &\n"
+       "                   h_82 & h_b0 &\n"
+       "                   r_02 & std_logic_vector(rd_02);\n"
+       "      end if;\n"
+       "   end process;\n"
+       "\nend architecture;")
+
+s = out / "SYSTEM11.sv"
+sub(s, ".dbg_coin(c76_coin), .dbg_ring_idx(jtag_addr[4:0]), .dbg_ring_q(c76_ring), .dbg_c76resp(c76_resp_lat)",
+       ".dbg_coin(c76_coin), .dbg_ring_idx(jtag_addr[4:0]), .dbg_ring_q(c76_ring), .dbg_c76resp(c76_resp_lat), .dbg_in(c76_dbg_in)")
+sub(s, "wire [15:0] c76_coin;", "wire [159:0] c76_dbg_in;   // s11_shramprobe.apply\nwire [15:0] c76_coin;")
+# rows: 5=[255:224] 7=[223:192] 6=[191:160] 8=[159:128] 9=[127:96] 1=[31:0]
+sub(s, "assign PK_DBG2 = s11_boot_dbg;",
+       "assign PK_DBG2 = {s11_boot_dbg[287:224], c76_dbg_in[159:128], c76_dbg_in[95:64], c76_dbg_in[63:32], c76_dbg_in[31:0], s11_boot_dbg[95:32], c76_dbg_in[127:96]};")
+print("s11_shramprobe applied")

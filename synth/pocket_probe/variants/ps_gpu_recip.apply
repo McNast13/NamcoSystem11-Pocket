@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""GuardianSoul's later GPU/DMA area patches (openfpga-PlayStation 0.5.5/0.5.6), in place of gpu_divider_pool.
+
+The PS release GPU is the "nopool" base (scripts/run_gpu_recip.py); gpu_divider_pool was an experiment there and dropped polygons here.
+Applied to the S11 sources after ps_patches.apply, in the PS order:
+  gpu_timing_prune (tools/ps_patch_chain.py; the gpu-recip anchors expect its output),
+  gpu_dy_ram       (polygon dy gradients in a small RAM),
+  gpu_recip        (gpu_poly, gpu_line, gpu: the six 46-clock gradient dividers become one reciprocal + pipelined multiply,
+                    three 11-bit dividers remain; bit-exact with the upstream quotient, proof in rtl/pocket/psx_gpu_recip_unit.vhd),
+  gpu_poly_stepadd (one adder per colour/texture channel; cycle-identical),
+  dma_share        (DMA timing and address adders shared; cycle-identical),
+  dma_m10k         (DMA MADR/BCR/CHCR tables from six asynchronous MLABs into falling-edge block RAM).
+gpu_poly_diffmux does not apply to the S11 text after stepadd and is left out.
+Usage: ps_gpu_recip.apply OUTDIR PSDIR ...   (PSDIR = references/openfpga-PlayStation checkout)
+"""
+import shutil, sys
+from pathlib import Path
+
+out, ps = Path(sys.argv[1]), Path(sys.argv[2]).resolve()
+rtl = out / "rtl"
+root = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(root / "tools"))
+import ps_patch_chain  # noqa: E402  (puts build/ps_root/scripts, the PS scripts with their expected references/ layout, on sys.path)
+import prepare_gpu_dy_ram as dy  # noqa: E402
+import prepare_gpu_recip as recip  # noqa: E402
+import prepare_gpu_poly_stepadd as stepadd  # noqa: E402
+import prepare_dma_share as dmashare  # noqa: E402
+import prepare_dma_m10k as dmam10k  # noqa: E402
+
+assert ps_patch_chain.timing_prune(rtl), "gpu_timing_prune did not apply"
+
+
+def edit(name, *fns):
+    p = rtl / name
+    t = p.read_text()
+    for fn in fns:
+        t = fn(t)
+    p.write_text(t)
+
+
+edit("gpu_poly.vhd", dy.dy_ram_text, recip.recip_poly_text, stepadd.stepadd_poly_text)
+edit("gpu_line.vhd", recip.recip_line_text)
+edit("gpu.vhd", recip.recip_gpu_text)
+edit("dma.vhd", dmashare.dma_share_text, dmam10k.dma_m10k_text)
+
+unit = ps / "rtl/pocket/psx_gpu_recip_unit.vhd"
+shutil.copy(unit, rtl / unit.name)
+qip = rtl / "psx.qip"
+q = qip.read_text()
+line = f"set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) {unit.name} ]\n"
+assert unit.name not in q
+qip.write_text(q + line)
+print("ps_gpu_recip: timing prune, dy-ram, gpu-recip (poly/line/gpu), poly stepadd, dma-share, dma-m10k")

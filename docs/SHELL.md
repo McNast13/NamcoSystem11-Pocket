@@ -208,3 +208,54 @@ Decoded with the new `tools/diag_decode_calib.py` (fits the lattice to rows with
 4. A/B hardware build without `cpu_execute_share` (and, if needed, without `ps_patches`) - only if 1-3 point at the CPU.
 5. Check isolate-cache / icache invalidate behaviour against what the boot code does (it writes kernel stubs to RAM then executes them; a stale icache line would return the wrong word at PC 0 exactly as T1 suggests).
 State of the SD card: build probe4 installed (bitstream.rbf_r + interact.json), tekken1.json and tekken2ud.json in Assets/namco_system11/common/.
+
+
+## 2026-10-22: local builds, probes 5-7, root cause (CPU reset PC) and the reset-only savestates fix
+Builds now run locally (`tools/local_build.sh`, docs/LOCAL_BUILD.md; same image as Actions, ~16 min). Every diagnostic build: `S11_NO_MDEC=1`, `SEED 99`, `S11_POSEDGE_OUT=1`, `S11_FORCE_DIAG=1`
+(without FORCE_DIAG the device shows the flat game-video screen with one white line). New build knobs: `S11_SKIP=variant,...` (A/B) and `S11_PROBES=s11_ramprobe` (probe applied after pocket_emu.apply).
+- A/B without `cpu_execute_share` (Tekken 1): same failure class (straight-line run through a data table at 0x91CC8.., Reserved Instruction on 0x03E70001 at 0x91CD0). Patch cleared.
+- probe5/6 (`s11_ramprobe.apply`, main-RAM readback through the ch3 sentinel slot): RAM[0x0] and RAM[0x10000] read 0 at 10, 30 and 60 s after load, no system resets, while in the simulator they hold the kernel stub
+  (3C1AA000 275A0800 03400008) and the game entry word (27BDFFE0) from game entry onwards. So the boot never wrote them. (probe5's rows were shifted: a 320-bit concat into the 288-bit PK_DBG2.)
+- probe7: SDRAM[0x400000] = 3C080013 and SDRAM[0x420400] = 0BF080BC, i.e. the boot program (rom_0.bin) is loaded intact; but the first CPU-side ch1 read after reset is address 0x10, data 0, not the reset vector.
+- **Root cause**: `drop_scaffold.apply` replaced savestates.vhd with a stub that passed reset through but never pulsed `ss_reset`. cpu.vhd resets its PC from `ss_in(0)`, which only becomes 0xBFC00000 (and PRID 2) on
+  `SS_reset`, so the MIPS started at PC 0 and swept zeroed RAM. Every earlier symptom fits (T1 RI at EPC 0 with ring {4,0,0}, varying fault EPCs, empty RAM, GPU untouched, MIPS mailbox writes 0).
+  The PS Pocket core avoids this by keeping the sequencer in a reset-only form (references/openfpga-PlayStation/scripts/prepare_reset_only.py).
+- **Fix**: `drop_scaffold.apply` no longer stubs savestates; new `savestates_reset_only.apply` (after drop_scaffold in tools/build_core_tree.py) pins resetMode=1/savemode=0/exeMode=0 as constants, collapses the
+  12 unreachable SAVE states into one null arm, and ties `save_state`/`load_state` low in SYSTEM11.sv. `tests/savestates/run.sh` (nvc, idealized pause/ddr3/SDRAM/SPU handshakes with psx_top's clk2xIndex and
+  aligned clocks) shows the sequence after reset_in falls: ss_reset at clk 2071 (system paused), scratchpad/SPU RAM/VRAM/2 MB main RAM cleared, final reset_out at clk 2,459,802 (~73 ms); cycle-identical to the
+  unmodified upstream file. Device checks done by reading: every SS_idle source is driven (stubs report idle), the SPU stub acks SS_SPURAM at once, the PSRAM VRAM adapter aliases high address bits so the
+  savestate-slot header reads still return data.
+- Builds queued: `fix8` (fix + probe rows 1 = RAM[0x0], 6 = RAM[0x10000], 8/9 = data/address of the first ch1 read after reset; expect 3C1AA000, 27BDFFE0, 3C080013, 00400000) and `game8` (fix, no FORCE_DIAG).
+- **Result (game8 = fix, no MDEC, seed 99)**: Tekken 1 boots on the Pocket: attract ranking screen and the 3D attract fight render; coin (Select) works, credits count to 9.
+  Open: (1) Start is not seen by the game (mapping checked on paper: key[15] -> joy[10] -> c76_sound in_player1 bit 7, active low); probe `s11_inprobe.apply` (build `probe9`:
+  rows 1 = {C76 P1-port reads, SWITCH reads}, 6 = {last P1 byte, last SW byte, live P1, live SW}, 8 = {P1 bits ever pressed, SW bits ever pressed, P2 reads}, 9 = joy[19:0]).
+  (2) Polygons missing on character models; the A/B without `gpu_divider_pool` does not fit (seeds 99/22/44 short by 7-13 LABs). (3) No FMV (MDEC dropped). (4) Thin line at the top of the picture.
+- Polygon A/B: without `gpu_divider_pool` the full build does not fit (seeds 99/22/44/7/3, 18,337-18,380 ALMs). The lean build `S11_SKIP=gpu_divider_pool,s11_bootbits S11_PROBES=s11_dbg2_zero`
+  (new `s11_dbg2_zero.apply` ties PK_DBG2 to 0 when the bring-up probe export is left out) fits at seed 44: 18,208 ALMs (`leannopool44`), with timing misses video_pll setup -0.192 ns (85C) / -1.206 ns (0C)
+  and core PLL general[0] hold -0.203 ns (85C). Not yet tested on the device.
+- `tools/build_core_tree.py` used to rewrite `pocket/project/s11full.qsf` even for scratch trees; running it during a compile crashed quartus_fit (probe9, "Settings File changed outside of the
+  Quartus Prime software"). It now writes the .qsf only for `pocket/build/core_tree`.
+- `probe9` rerun built: 18,142 ALMs, seed 99, misses PLL general[2] setup -0.115 ns (85C) and video_pll setup -0.299 ns (0C); package `pocket/package-probe9`, not yet tested.
+  probe9's 85C miss is savestates reset_out -> ram_refresh/refreshForce -> psx_sdram_ctrl a[10] (clk_3x): register refreshForce once in clk_3x in s11_sdram_shim.sv.
+
+## 2026-10-23: Start, FMV and the first playable build (game14)
+- **Result (game14): Tekken plays on the Pocket.** Intro FMV, credits, Start -> PLAYER SELECT -> fight. 18,029 ALMs, real MDEC, seed 44.
+  Recipe: `S11_SKIP=s11_bootbits S11_PROBES=s11_dbg2_zero` with `SEED 44` and `S11_POSEDGE_OUT=1` (no `S11_NO_MDEC`).
+- **Why Start was ignored.** Probes 9-13 followed the press end to end against MAME 0.289 (`brew install mame`, Lua scripts; see below):
+  the C76 reads it (probe9), writes it to shared RAM BD02/BD03/BD83 (probe10/11, identical to MAME), the MIPS reads the edge (probe12),
+  sets its Start flag 0x802648D0 bit 15, coins 2 and coins/credit 2 are right (probe13), but never plays the start sound 0x4113. The game
+  state 0x80264880 was 00020001, a sub-step MAME never enters; mode 1 sub-step 1 is the intro movie, which the game feeds to the MDEC by DMA
+  only (it never reads the MDEC registers). The no-MDEC stub never finished those DMAs. A stub that keeps both DMAs flowing (game12) was not
+  enough; the real MDEC (game14) fixed it. "CREDIT 0/2" is normal: tekkenac ships at 2 coins per credit.
+- **Area for MDEC came from following openfpga-PlayStation 0.5.6** (submodule moved from 4940d18):
+  `ps_gpu_recip.apply` (gpu_timing_prune, gpu_dy_ram, gpu-recip for poly/line/gpu, poly stepadd, dma-share, dma-m10k) replaces
+  `gpu_divider_pool` (the PS release GPU is the "nopool" base); `ps_gte.apply` adds the seven PS GTE patches to the Laxer GTE (control/data
+  RAM, matrix RAM, add table, vector RAM, multicycle, M10K, shadow M10K), which S11 had none of. Synthesis estimate 18,143 -> 17,561.
+  `tools/ps_patch_survey.py` now recopies `build/ps_root` when the submodule moves (it had kept using the old scripts). gpu_poly_diffmux
+  does not apply to the S11 text after stepadd; bridge-cmd-lean (our core_bridge_cmd.v is byte-identical to MIRLO64) is not applied yet.
+- `eeprom_blank.apply`: upstream's EEPROM BRAM init file `eeprom_ff.mif` is not shipped, so the BRAM came up zero; it now inits to all-FF.
+- **Open:** polygons still hit and miss. game14's worst clk_2x setup is -0.495 ns (85C), all in gpu_pixelpipeline's texture-cache
+  address (drawMode[7], stage0_u -> cache_address_a): first suspect. Seed sweep running; then a fix for that path, then A/B of the
+  remaining GPU variants (gpu_area_reg, gpu_rect_timing, gpu_read_late, no_texfilter) against MAME frames.
+- MAME reference tips: C76 device tag `:c76`; keep write/read tap objects referenced or they are collected; debugger works with
+  `-debug -debugger none`, breakpoint actions log with `logerror` plus `-log`; `dasm file,addr,len` via `manager.machine.debugger:command`.

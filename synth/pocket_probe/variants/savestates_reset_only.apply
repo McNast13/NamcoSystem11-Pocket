@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""Reset-only savestate sequencer (replaces the savestates stub that drop_scaffold.apply used to install).
+
+The stub passed reset_in straight to reset_out and never pulsed ss_reset. cpu.vhd resets its PC from ss_in(0), which is only set to
+0xBFC00000 (and cop0 PRID to 2) when ss_reset pulses, so the MIPS started at PC 0 and ran through zeroed RAM (probe5-7, 2026-10-22).
+
+This keeps the upstream sequencer and its reset path unchanged (pause, SS_idle wait, ss_reset, scratchpad/SPU RAM/VRAM/main-RAM clear,
+reset_out held until done) and only removes what save/load needed, following the reset-only specialization in
+references/openfpga-PlayStation/scripts/prepare_reset_only.py:
+  - resetMode = '1', savemode = '0', exeMode = '0' become constants (their assignments are dropped);
+  - the twelve SAVE states, unreachable once savemode is constant '0', collapse into one null arm.
+save_state/load_state are tied low in SYSTEM11.sv so a stray button/OSD/PS2 trigger cannot start a load (= a reset in this mode).
+Usage: savestates_reset_only.apply OUTDIR [ignored...]
+"""
+import re
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+p = out / "rtl/savestates.vhd"
+t = p.read_text()
+assert "architecture stub of savestates" not in t, "savestates.vhd is the stub: drop_scaffold.apply must leave it alone"
+
+for name, value, writes in (("resetMode", "'1'", 3), ("savemode", "'0'", 3), ("exeMode", "'0'", 2)):
+    t, n = re.subn(r"\bsignal " + name + r"\s*:\s*std_logic\s*:=\s*'0';", f"constant {name} : std_logic := {value};", t)
+    assert n == 1, (name, "declaration", n)
+    t, n = re.subn(r"^\s*" + name + r"\s*<=\s*'[01]';\s*\n", "", t, flags=re.M)
+    assert n == writes, (name, "assignments", n)
+
+start = t.index("            when SAVE_WAITSETTLE =>")
+end = t.index("            when LOAD_WAITSETTLE =>", start)
+save_states = re.findall(r"            when (SAVE\w+) =>", t[start:end])
+assert len(save_states) == 12, save_states
+t = t[:start] + f"            when {' | '.join(save_states)} =>\n               null;   -- save arms: unreachable in the reset-only build\n\n" + t[end:]
+p.write_text(t)
+
+s = out / "SYSTEM11.sv"
+u = s.read_text()
+for port, sig in (("save_state", "ss_save"), ("load_state", "ss_load")):
+    old = f"   .{port:<22}({sig}),"
+    assert u.count(old) == 1, (old, u.count(old))
+    u = u.replace(old, f"   .{port:<22}(1'b0),   // reset-only savestates (savestates_reset_only.apply)")
+s.write_text(u)
+print("savestates: reset-only sequencer; save/load tied low; removed", len(save_states), "save states")

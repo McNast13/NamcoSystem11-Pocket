@@ -15,11 +15,15 @@ S11 = ROOT / "references/SYSTEM11_MiSTer/rtl"
 def scratch_root():
     """Copy of the PS port's scripts/rtl plus a PSX_MiSTer link: the scripts read their pinned
     upstream at import time and expect it under <root>/references."""
-    import shutil
+    import shutil, subprocess
     root = ROOT / "build/ps_root"
+    src = ROOT / "references/openfpga-PlayStation"
+    rev = subprocess.run(["git", "-C", str(src), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    if root.exists() and (root / ".rev").exists() and (root / ".rev").read_text() != rev:
+        shutil.rmtree(root)   # the submodule moved: copy its scripts again
     if not root.exists():
-        src = ROOT / "references/openfpga-PlayStation"
         root.mkdir(parents=True)
+        (root / ".rev").write_text(rev)
         for d in ("scripts", "rtl", "support"):
             if (src / d).exists():
                 shutil.copytree(src / d, root / d)

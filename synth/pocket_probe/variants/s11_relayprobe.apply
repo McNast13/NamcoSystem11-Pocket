@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""Bring-up probe (probe10): does the Start press the C76 reads get relayed to the MIPS through the shared (mailbox) RAM?
+probe9 showed the C76 reads PLAYER1 = 0x7F (START, bit 7 active low) while Start is held, yet the game never starts while coin works.
+"Relay write" = a C76 write into shared RAM while in_player1 = 0x7F (only Start held) whose byte is 0x7F or 0x80 (raw or inverted copy).
+The MIPS side is sampled whenever its mailbox address equals the word of the last relay write (port B data, one clock later).
+Rows (diagnostic screen, needs S11_FORCE_DIAG):
+  7 = {first relay write: byte offset from 0x4000 [31:16], data [15:8], 8'b0}
+  1 = {last relay write:  byte offset from 0x4000 [31:16], data [15:8], 8'b0}
+  6 = {last PLAYER1 byte read, last SWITCH byte read, live in_player1, live in_switch}   (as probe9)
+  8 = {MIPS-side word at the relay address, last seen while Start held [31:16], last seen while released [15:0]}
+  9 = {MIPS samples of the relay word [31:16], relay writes [15:0]}   (saturating)
+Rows 4/5 unchanged. Run AFTER pocket_emu.apply (it rewrites the PK_DBG2 assign). Usage: s11_relayprobe.apply OUTDIR
+"""
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+
+
+def sub(path, old, new):
+    t = path.read_text()
+    assert t.count(old) == 1, (path.name, old, t.count(old))
+    path.write_text(t.replace(old, new))
+
+
+c = out / "rtl/c76_sound.vhd"
+sub(c, "      dbg_c76resp      : out std_logic_vector(31 downto 0) := (others=>'0')\n   );",
+       "      dbg_c76resp      : out std_logic_vector(31 downto 0) := (others=>'0');\n"
+       "      dbg_in           : out std_logic_vector(159 downto 0) := (others=>'0')   -- s11_relayprobe.apply\n   );")
+sub(c, "\nend architecture;",
+       "\n   -- s11_relayprobe.apply: Start relay C76 -> shared RAM -> MIPS\n"
+       "   relayprobe : process(clk)\n"
+       "      variable last_p1, last_sw : std_logic_vector(7 downto 0) := (others => '1');\n"
+       "      variable first_seen : std_logic := '0';\n"
+       "      variable first_idx, last_idx : std_logic_vector(14 downto 0) := (others => '0');\n"
+       "      variable first_d, last_d : std_logic_vector(7 downto 0) := (others => '0');\n"
+       "      variable cnt_wr, cnt_rd : unsigned(15 downto 0) := (others => '0');\n"
+       "      variable mips_hit_d : std_logic := '0';\n"
+       "      variable w_held, w_rel : std_logic_vector(15 downto 0) := (others => '0');\n"
+       "   begin\n"
+       "      if rising_edge(clk) then\n"
+       "         if ce = '1' and ext_rd = '1' and sel_in = '1' then\n"
+       "            if ext_addr(2 downto 1) = \"10\" then last_p1 := in_player1; end if;\n"
+       "            if ext_addr(2 downto 1) = \"01\" then last_sw := in_switch;  end if;\n"
+       "         end if;\n"
+       "         if ce = '1' and ext_wr = '1' and sel_shared = '1' and in_player1 = x\"7F\"\n"
+       "            and (ext_dout = x\"7F\" or ext_dout = x\"80\") then\n"
+       "            if first_seen = '0' then first_idx := std_logic_vector(c76_idx); first_d := ext_dout; end if;\n"
+       "            first_seen := '1';\n"
+       "            last_idx := std_logic_vector(c76_idx); last_d := ext_dout;\n"
+       "            if cnt_wr /= x\"FFFF\" then cnt_wr := cnt_wr + 1; end if;\n"
+       "         end if;\n"
+       "         if mips_hit_d = '1' then\n"
+       "            if cnt_rd /= x\"FFFF\" then cnt_rd := cnt_rd + 1; end if;\n"
+       "            if in_player1(7) = '0' then w_held := mips_dout; else w_rel := mips_dout; end if;\n"
+       "         end if;\n"
+       "         mips_hit_d := '0';\n"
+       "         if first_seen = '1' and dbg_rb_en = '0' and mips_wr = '0' and mips_addr = last_idx(14 downto 1) then\n"
+       "            mips_hit_d := '1';\n"
+       "         end if;\n"
+       "         dbg_in <= '0' & first_idx & first_d & x\"00\" &\n"
+       "                   '0' & last_idx & last_d & x\"00\" &\n"
+       "                   last_p1 & last_sw & in_player1 & in_switch &\n"
+       "                   w_held & w_rel &\n"
+       "                   std_logic_vector(cnt_rd) & std_logic_vector(cnt_wr);\n"
+       "      end if;\n"
+       "   end process;\n"
+       "\nend architecture;")
+
+s = out / "SYSTEM11.sv"
+sub(s, ".dbg_coin(c76_coin), .dbg_ring_idx(jtag_addr[4:0]), .dbg_ring_q(c76_ring), .dbg_c76resp(c76_resp_lat)",
+       ".dbg_coin(c76_coin), .dbg_ring_idx(jtag_addr[4:0]), .dbg_ring_q(c76_ring), .dbg_c76resp(c76_resp_lat), .dbg_in(c76_dbg_in)")
+sub(s, "wire [15:0] c76_coin;", "wire [159:0] c76_dbg_in;   // s11_relayprobe.apply\nwire [15:0] c76_coin;")
+# rows: 5=[255:224] 7=[223:192] 6=[191:160] 8=[159:128] 9=[127:96] 1=[31:0]
+sub(s, "assign PK_DBG2 = s11_boot_dbg;",
+       "assign PK_DBG2 = {s11_boot_dbg[287:224], c76_dbg_in[159:128], c76_dbg_in[95:64], c76_dbg_in[63:32], c76_dbg_in[31:0], s11_boot_dbg[95:32], c76_dbg_in[127:96]};")
+print("s11_relayprobe applied")

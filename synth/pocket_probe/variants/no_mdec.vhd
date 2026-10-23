@@ -1,5 +1,9 @@
--- Probe-only stub of the PSX MDEC (same ports). Reports "idle, output FIFO empty" and
--- never requests DMA, so FMV decoding does nothing. Used to measure area saved.
+-- Stand-in for the PSX MDEC when it does not fit (S11_NO_MDEC=1; same ports, ~600 ALMs saved). It decodes nothing but keeps both
+-- MDEC DMA channels flowing: input words are accepted and dropped, output words read as 0, so a movie plays as black frames and
+-- ends on time. The first version never requested DMA, so the game's movie player waited forever on the transfers: Tekken (tekkenac)
+-- then sat in a state MAME never enters (game state 0x80264880 = 00020001, intro movie is 00010001) and ignored Start although
+-- coins, credits and the Start flag were all right (probes 9-13). MAME shows the game never reads the MDEC registers during a movie,
+-- only the DMA. Channels 3 and 6 in dma.vhd already hold their request at '1' the same way.
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
@@ -32,8 +36,8 @@ end entity;
 architecture arch of mdec is
 begin
    bus_dataRead    <= x"80000000";
-   dmaWriteRequest <= '0';
-   dmaReadRequest  <= '0';
+   dmaWriteRequest <= '1';   -- always ready for input (dropped)
+   dmaReadRequest  <= '1';   -- always has output (zeros)
    dma_readdata    <= (others => '0');
    SS_DataRead     <= (others => '0');
    SS_Idle         <= '1';

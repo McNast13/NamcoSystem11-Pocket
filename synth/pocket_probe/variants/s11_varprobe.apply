@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Bring-up probe (probe13): Tekken (tekkenac) game variables in main RAM, read through the ch3 sentinel slot (as s11_ramprobe.apply).
+MAME: the routine at 0x8002F450 (called every frame on the attract/title screens) starts a game when the halfword at 0x802648D0 (P1) or
+0x802648D2 (P2) has bit 15 set (the Start edge, set from shared BD02) and the credit check at 0x8002DB80 passes: coins at 0x80267038 >=
+coins per credit at 0x80267040 (free play if 0x8013FDE0 != 0). Title screen with 2 coins: [802648D0]=0, [80267038]=2, [80267040]=2,
+[80264880]=00010004; two frames after Start: [802648D0]=00008000, coins 0, [80264880]=00000005.
+Rows (diagnostic screen, needs S11_FORCE_DIAG): 1 = RAM[0x2648D0] last read, 6 = RAM[0x2648D0] every bit ever seen set (sticky OR),
+7 = RAM[0x264880] (game state), 8 = RAM[0x267038] (coins), 9 = RAM[0x267040] (coins per credit). Each word is read about every 2.5 ms.
+Run AFTER pocket_emu.apply (it rewrites the PK_DBG2 assign). Usage: s11_varprobe.apply OUTDIR
+"""
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1]) / "SYSTEM11.sv"
+t = p.read_text()
+
+
+def sub(old, new):
+    global t
+    assert t.count(old) == 1, (old, t.count(old))
+    t = t.replace(old, new)
+
+
+sub("""wire [26:0] sent_addr  = 27'd0;
+wire [31:0] sent_din   = 32'd0;
+wire        sent_req   = 1'b0;
+wire        sent_rnw   = 1'b1;
+wire [3:0]  sent_be    = 4'b1111;
+wire        sentinel_active = 1'b0;
+""", """reg  [26:0] sent_addr  = 27'd0;
+wire [31:0] sent_din   = 32'd0;
+reg         sent_req   = 1'b0;
+wire        sent_rnw   = 1'b1;
+wire [3:0]  sent_be    = 4'b1111;
+reg         sentinel_active = 1'b0;
+// s11_varprobe.apply (probe13): Tekken start/credit variables in main RAM through the ch3 sentinel slot
+reg  [27:0] rb_t = 28'd0;
+reg  [2:0]  rb_idx = 3'd0;
+reg         rb_wait = 1'b0;
+reg  [13:0] rb_gap = 14'd0;
+reg  [31:0] rv_flags = 32'd0, rv_sticky = 32'd0, rv_state = 32'd0, rv_coins = 32'd0, rv_cpc = 32'd0;
+always @(posedge clk_1x) begin
+   sent_req <= 1'b0;
+   if (ram_cleared && ~rb_t[26]) rb_t <= rb_t + 1'b1;
+   if (rb_gap != 14'd0) rb_gap <= rb_gap - 1'b1;
+   if (~rb_wait) begin
+      if (rb_t[26] && rb_gap == 14'd0 && sprog_st == 2'd0 && wave_st == 2'd0 && ~c76_sprog_rd && ~c76_wave_rd && ~clr_active &&
+          ~(bios_download | fixedrom_download | bankedrom_download | sprog_download | wave_download)) begin
+         case (rb_idx)
+            3'd0, 3'd2: sent_addr <= 27'h2648D0;
+            3'd1:       sent_addr <= 27'h264880;
+            3'd3:       sent_addr <= 27'h267038;
+            default:    sent_addr <= 27'h267040;
+         endcase
+         sentinel_active <= 1'b1; sent_req <= 1'b1; rb_wait <= 1'b1;
+      end
+   end else if (sdramCh3_done) begin
+      case (rb_idx)
+         3'd0, 3'd2: begin rv_flags <= cheats_din; rv_sticky <= rv_sticky | cheats_din; end
+         3'd1:       rv_state <= cheats_din;
+         3'd3:       rv_coins <= cheats_din;
+         default:    rv_cpc   <= cheats_din;
+      endcase
+      sentinel_active <= 1'b0; rb_wait <= 1'b0; rb_idx <= (rb_idx == 3'd4) ? 3'd0 : rb_idx + 1'b1; rb_gap <= 14'h3FFF;
+   end
+end
+""")
+# rows: 5=[255:224] 7=[223:192] 6=[191:160] 8=[159:128] 9=[127:96] 1=[31:0]
+sub("assign PK_DBG2 = s11_boot_dbg;",
+    "assign PK_DBG2 = {s11_boot_dbg[287:224], rv_state, rv_sticky, rv_coins, rv_cpc, s11_boot_dbg[95:32], rv_flags};")
+p.write_text(t)
+print("s11_varprobe applied")

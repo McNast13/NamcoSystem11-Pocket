@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Bring-up probe (probe12): does the game accept Start? MAME (tekkenac, 2 coins): the frame after the Start edge the MIPS writes sound
+command 0x4113 to the shared word 0x402E (halfword store, upper lane of 0x402C), the C76 marks it 0x8113; ~45 frames later it writes 0x4066
+to 0x4000 and PLAYER SELECT appears. The MIPS does not wait on the C76 for this. probe11 showed every Start byte the MIPS reads matches MAME.
+Rows (diagnostic screen, needs S11_FORCE_DIAG):
+  7 = {last MIPS write to the command area 0x4000-0x40FF: halfword index [31:16], data [15:0]}
+  1 = {MIPS writes to word 0x402E [31:16], last data written there [15:0]}
+  6 = {MIPS writes of 0x4113 anywhere in 0x4000-0x40FF [31:16], MIPS writes to word 0x4000 [15:0]}
+  8 = {last MIPS data to word 0x4000 [31:16], MIPS reads of BD02 with the edge byte set [15:0]}
+  9 = {last C76 write to word 0x402E (high byte, low byte) [31:16], C76 writes to 0x402E/0x402F [15:0]}
+Rows 4/5 unchanged. Run AFTER pocket_emu.apply (it rewrites the PK_DBG2 assign). Usage: s11_cmdprobe.apply OUTDIR
+"""
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+
+
+def sub(path, old, new):
+    t = path.read_text()
+    assert t.count(old) == 1, (path.name, old, t.count(old))
+    path.write_text(t.replace(old, new))
+
+
+c = out / "rtl/c76_sound.vhd"
+sub(c, "      dbg_c76resp      : out std_logic_vector(31 downto 0) := (others=>'0')\n   );",
+       "      dbg_c76resp      : out std_logic_vector(31 downto 0) := (others=>'0');\n"
+       "      dbg_in           : out std_logic_vector(159 downto 0) := (others=>'0')   -- s11_cmdprobe.apply\n   );")
+sub(c, "\nend architecture;",
+       "\n   -- s11_cmdprobe.apply: MIPS sound commands around the Start press\n"
+       "   cmdprobe : process(clk)\n"
+       "      variable l_idx, l_dat, n_2e, d_2e, n_4113, n_00, d_00, rd_edge, c_2e, n_c2e : std_logic_vector(15 downto 0) := (others => '0');\n"
+       "      variable addr_d : std_logic_vector(13 downto 0) := (others => '0');\n"
+       "      variable rd_d : std_logic := '0';\n"
+       "      procedure inc(variable v : inout std_logic_vector(15 downto 0)) is\n"
+       "      begin\n"
+       "         if v /= x\"FFFF\" then v := std_logic_vector(unsigned(v) + 1); end if;\n"
+       "      end procedure;\n"
+       "   begin\n"
+       "      if rising_edge(clk) then\n"
+       "         if mips_wr = '1' and unsigned(mips_addr) < 16#80# then\n"
+       "            l_idx := \"00\" & mips_addr; l_dat := mips_din;\n"
+       "            if mips_din = x\"4113\" then inc(n_4113); end if;\n"
+       "            if unsigned(mips_addr) = 16#17# then inc(n_2e); d_2e := mips_din; end if;\n"
+       "            if unsigned(mips_addr) = 16#00# then inc(n_00); d_00 := mips_din; end if;\n"
+       "         end if;\n"
+       "         if ce = '1' and ext_wr = '1' and sel_shared = '1' then\n"
+       "            if to_integer(c76_idx) = 16#2E# then c_2e(7 downto 0) := ext_dout; inc(n_c2e); end if;\n"
+       "            if to_integer(c76_idx) = 16#2F# then c_2e(15 downto 8) := ext_dout; inc(n_c2e); end if;\n"
+       "         end if;\n"
+       "         if rd_d = '1' and to_integer(unsigned(addr_d)) = 16#3E81# and mips_dout(7 downto 0) /= x\"00\" then inc(rd_edge); end if;\n"
+       "         addr_d := mips_addr;\n"
+       "         rd_d := not mips_wr and not dbg_rb_en;\n"
+       "         dbg_in <= l_idx & l_dat &\n"
+       "                   n_2e & d_2e &\n"
+       "                   n_4113 & n_00 &\n"
+       "                   d_00 & rd_edge &\n"
+       "                   c_2e & n_c2e;\n"
+       "      end if;\n"
+       "   end process;\n"
+       "\nend architecture;")
+
+s = out / "SYSTEM11.sv"
+sub(s, ".dbg_coin(c76_coin), .dbg_ring_idx(jtag_addr[4:0]), .dbg_ring_q(c76_ring), .dbg_c76resp(c76_resp_lat)",
+       ".dbg_coin(c76_coin), .dbg_ring_idx(jtag_addr[4:0]), .dbg_ring_q(c76_ring), .dbg_c76resp(c76_resp_lat), .dbg_in(c76_dbg_in)")
+sub(s, "wire [15:0] c76_coin;", "wire [159:0] c76_dbg_in;   // s11_cmdprobe.apply\nwire [15:0] c76_coin;")
+# rows: 5=[255:224] 7=[223:192] 6=[191:160] 8=[159:128] 9=[127:96] 1=[31:0]
+sub(s, "assign PK_DBG2 = s11_boot_dbg;",
+       "assign PK_DBG2 = {s11_boot_dbg[287:224], c76_dbg_in[159:128], c76_dbg_in[95:64], c76_dbg_in[63:32], c76_dbg_in[31:0], s11_boot_dbg[95:32], c76_dbg_in[127:96]};")
+print("s11_cmdprobe applied")

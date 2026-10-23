@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Bring-up probe (probe9): what the C76 reads from the System 11 input ports (MAME c76_map 0x1000-0x1007).
+Start (Pocket face_start -> joy[10] -> in_player1 bit 7, active low) is not seen by the game while coin (in_switch bit 5) is.
+Rows (diagnostic screen, needs S11_FORCE_DIAG):
+  1 = {C76 reads of the PLAYER1 port [31:16], reads of the SWITCH port [15:0]}   (counts C76 clocks with a read on that port)
+  6 = {last PLAYER1 byte read, last SWITCH byte read, live in_player1, live in_switch}   (active low: a 0 bit = pressed)
+  8 = {PLAYER1 bits ever read as pressed, SWITCH bits ever read as pressed, reads of PLAYER2 [15:0]}   (sticky; P1 bit 7 = START)
+  9 = {12'b0, joy[19:0]} live Pocket joystick word in SYSTEM11.sv (bit 10 = Start, bit 11 = Coin)
+Rows 4/5/7 unchanged. Run AFTER pocket_emu.apply (it rewrites the PK_DBG2 assign). Usage: s11_inprobe.apply OUTDIR
+"""
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+
+
+def sub(path, old, new):
+    t = path.read_text()
+    assert t.count(old) == 1, (path.name, old, t.count(old))
+    path.write_text(t.replace(old, new))
+
+
+c = out / "rtl/c76_sound.vhd"
+sub(c, "      dbg_c76resp      : out std_logic_vector(31 downto 0) := (others=>'0')\n   );",
+       "      dbg_c76resp      : out std_logic_vector(31 downto 0) := (others=>'0');\n"
+       "      dbg_in           : out std_logic_vector(95 downto 0) := (others=>'0')   -- s11_inprobe.apply\n   );")
+sub(c, "\nend architecture;",
+       "\n   -- s11_inprobe.apply: input-port reads by the C76\n"
+       "   inprobe : process(clk)\n"
+       "      variable cnt_p1, cnt_sw, cnt_p2 : unsigned(15 downto 0) := (others => '0');\n"
+       "      variable last_p1, last_sw : std_logic_vector(7 downto 0) := (others => '1');\n"
+       "      variable seen_p1, seen_sw : std_logic_vector(7 downto 0) := (others => '0');\n"
+       "   begin\n"
+       "      if rising_edge(clk) then\n"
+       "         if ce = '1' and ext_rd = '1' and sel_in = '1' then\n"
+       "            case ext_addr(2 downto 1) is\n"
+       "               when \"10\" => if cnt_p1 /= x\"FFFF\" then cnt_p1 := cnt_p1 + 1; end if; last_p1 := in_player1; seen_p1 := seen_p1 or not in_player1;\n"
+       "               when \"01\" => if cnt_sw /= x\"FFFF\" then cnt_sw := cnt_sw + 1; end if; last_sw := in_switch;  seen_sw := seen_sw or not in_switch;\n"
+       "               when \"11\" => if cnt_p2 /= x\"FFFF\" then cnt_p2 := cnt_p2 + 1; end if;\n"
+       "               when others => null;\n"
+       "            end case;\n"
+       "         end if;\n"
+       "         dbg_in <= std_logic_vector(cnt_p1) & std_logic_vector(cnt_sw) & last_p1 & last_sw & in_player1 & in_switch &\n"
+       "                   seen_p1 & seen_sw & std_logic_vector(cnt_p2);\n"
+       "      end if;\n"
+       "   end process;\n"
+       "\nend architecture;")
+
+s = out / "SYSTEM11.sv"
+sub(s, ".dbg_coin(c76_coin), .dbg_ring_idx(jtag_addr[4:0]), .dbg_ring_q(c76_ring), .dbg_c76resp(c76_resp_lat)",
+       ".dbg_coin(c76_coin), .dbg_ring_idx(jtag_addr[4:0]), .dbg_ring_q(c76_ring), .dbg_c76resp(c76_resp_lat), .dbg_in(c76_dbg_in)")
+sub(s, "wire [15:0] c76_coin;", "wire [95:0] c76_dbg_in;   // s11_inprobe.apply\nwire [15:0] c76_coin;")
+# rows: 5=[255:224] 7=[223:192] 6=[191:160] 8=[159:128] 9=[127:96] 1=[31:0]
+sub(s, "assign PK_DBG2 = s11_boot_dbg;",
+       "assign PK_DBG2 = {s11_boot_dbg[287:192], c76_dbg_in[63:32], c76_dbg_in[31:0], {12'd0, joy}, s11_boot_dbg[95:32], c76_dbg_in[95:64]};")
+print("s11_inprobe applied")

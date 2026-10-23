@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""Power the EEPROM (AT28C16 settings BRAM in zn1_io) up blank (all 0xFF), as a factory-fresh board.
+Upstream points the BRAM init_file at eeprom_ff.mif but does not ship it, so Quartus initialises the BRAM to zero. Tekken accepted
+the zeroed settings (a zero checksum over zero data) and ran with a broken coin setting: the credit display read "CREDIT 0/2",
+coins counted up to 9/2 but never became a credit, so Start was ignored. With no .sav loaded through slot 9 the game now sees a blank
+EEPROM and writes its own defaults. The .mif is generated here (literally blank: no captured nvram data).
+The init_file path is relative to the Quartus project directory (pocket/project), which builds from pocket/build/core_tree.
+Usage: eeprom_blank.apply OUTDIR
+"""
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+(out / "rtl/eeprom_ff.mif").write_text(
+    "WIDTH=32;\nDEPTH=1024;\nADDRESS_RADIX=HEX;\nDATA_RADIX=HEX;\nCONTENT BEGIN\n  [0..3FF] : FFFFFFFF;\nEND;\n")
+p = out / "rtl/zn1_io.vhd"
+t = p.read_text()
+old = 'init_file           => "eeprom_ff.mif",'
+assert t.count(old) == 1, t.count(old)
+p.write_text(t.replace(old, 'init_file           => "../build/core_tree/rtl/eeprom_ff.mif",   -- eeprom_blank.apply'))
+print("EEPROM BRAM inits to all-FF")

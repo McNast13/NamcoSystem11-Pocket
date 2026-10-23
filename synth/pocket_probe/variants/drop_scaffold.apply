@@ -1,31 +1,13 @@
 #!/usr/bin/env python3
-"""Replace MiSTer-only scaffolding with idle stubs: the savestate engine (reset passes through)
-and the runtime PLL reconfiguration core. Measures what the Pocket shell would not need."""
+"""Replace MiSTer-only scaffolding with idle stubs: the runtime PLL reconfiguration core (the savestate engine was
+stubbed here too until 2026-10-22; see savestates_reset_only.apply). Measures what the Pocket shell would not need."""
 import re, sys
 from pathlib import Path
 
 work = Path(sys.argv[1]).resolve()
 
-# savestates: same entity, no state saving. reset_out must still follow reset_in.
-p = work / "rtl/savestates.vhd"
-text = p.read_text()
-ent = re.search(r"entity savestates is.*?\nend entity;", text, re.S).group(0)
-stub = f"""library IEEE;
-use IEEE.std_logic_1164.all;
-use IEEE.numeric_std.all;
-
-{ent}
-
-architecture stub of savestates is
-begin
-   reset_out         <= reset_in;
-   validSStates      <= (others => '0');
-   savestate_busy    <= '0';
-   SS_wren           <= (others => '0');
-   SS_rden           <= (others => '0');
-end architecture;
-"""
-p.write_text("-- stub: savestates removed for the Pocket area probe\n" + stub)
+# savestates: NOT stubbed any more. The stub never pulsed ss_reset, so the CPU reset to PC 0 instead of 0xBFC00000
+# (2026-10-22); savestates_reset_only.apply now specializes the real sequencer.
 
 (work / "pll_cfg_stub.v").write_text("""module pll_cfg(
   input mgmt_clk, input mgmt_reset, output mgmt_waitrequest, input mgmt_read,
@@ -36,4 +18,4 @@ p.write_text("-- stub: savestates removed for the Pocket area probe\n" + stub)
   assign reconfig_to_pll = 64'd0;
 endmodule
 """)
-print("stubbed savestates and pll_cfg")
+print("stubbed pll_cfg")
