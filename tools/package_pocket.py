@@ -36,7 +36,9 @@ def main():
         return rgb565.to_bytes(2, "little") * (w * h)
     (core / "icon.bin").write_bytes(solid(36, 36, 0xC0A0))
     (a.out / "Platforms/_images").mkdir(parents=True, exist_ok=True)
-    (a.out / "Platforms/_images/namco_system11.bin").write_bytes(solid(521, 165, 0x2104))
+    banner = ROOT / "pocket/dist/Platforms/_images/namco_system11.bin"   # pocket/dist/art/namco_system11_banner.png, encoded with
+    (a.out / "Platforms/_images/namco_system11.bin").write_bytes(           # references/openfpga-PlayStation/scripts/pocket_image.py
+        banner.read_bytes() if banner.exists() else solid(521, 165, 0x2104))
 
     (plat / "namco_system11.json").write_text(json.dumps(
         {"platform": {"category": "Arcade Multi", "name": "Namco System 11", "manufacturer": "Namco", "year": 1994}}, indent=2) + "\n")
