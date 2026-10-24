@@ -150,6 +150,19 @@ jobs:
           TAG: ${{ inputs.tag || github.ref_name }}
         shell: bash
         run: |
+          # A release packaged by hand from the tested bitstream (tools/package_pocket.py + gh) already exists when its tag is pushed:
+          # leave it alone and check that this build reproduces its bitstream instead of failing on "release already exists".
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            mkdir -p existing && gh release download "$TAG" -p '*.zip' -D existing
+            unzip -q -o existing/*.zip 'Cores/McNast13.NamcoSystem11/bitstream.rbf_r' -d existing/x
+            if cmp existing/x/Cores/McNast13.NamcoSystem11/bitstream.rbf_r \
+                   ${{ steps.pick.outputs.dir }}/package/Cores/McNast13.NamcoSystem11/bitstream.rbf_r; then
+              echo "::notice::release $TAG already exists; this build reproduces its bitstream byte for byte (left unchanged)"
+              exit 0
+            fi
+            echo "::error::release $TAG already exists and its bitstream differs from this build (left unchanged)"
+            exit 1
+          fi
           flags=""
           [ "${{ github.event_name }}" = push ] || [ "${{ inputs.prerelease }}" = true ] && flags="$flags --prerelease"
           [ "${{ inputs.draft }}" = true ] && flags="$flags --draft"
