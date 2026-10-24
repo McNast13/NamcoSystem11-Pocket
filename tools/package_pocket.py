@@ -49,7 +49,8 @@ def main():
     # placeholder artwork: icon 36x36 and platform picture 521x165, RGB565 little-endian, solid colour
     def solid(w, h, rgb565):
         return rgb565.to_bytes(2, "little") * (w * h)
-    (core / "icon.bin").write_bytes(solid(36, 36, 0xC0A0))
+    icon = CORE_DIR / "icon.bin"   # author icon on the core's About screen: pocket/dist/art/author_icon.png, encoded with pocket_image.py
+    (core / "icon.bin").write_bytes(icon.read_bytes() if icon.exists() else solid(36, 36, 0xC0A0))
     (a.out / "Platforms/_images").mkdir(parents=True, exist_ok=True)
     banner = ROOT / "pocket/dist/Platforms/_images/namco_system11.bin"   # pocket/dist/art/namco_system11_banner.png, encoded with
     (a.out / "Platforms/_images/namco_system11.bin").write_bytes(           # references/openfpga-PlayStation/scripts/pocket_image.py
