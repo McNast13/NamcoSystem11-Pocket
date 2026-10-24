@@ -1,6 +1,7 @@
 name: Release
-# Builds the game core (no diagnostic screen) with the release recipe, tries several fitter seeds in parallel, keeps the seed that fits
-# with the best worst-case slack, stamps the version into core.json and publishes a GitHub release with the SD-card zip (no ROMs).
+# Builds the game core (no diagnostic screen) with the release recipe at the fitter seed of the build tested on a Pocket (a release must
+# be the tested placement: another seed is the same design but a different, untested fit), stamps the version into core.json and
+# publishes a GitHub release with the SD-card zip (no ROMs). To release a new seed, test that seed on a Pocket first.
 # Trigger: push a tag like v0.1.0, or run it by hand (Actions -> Release -> Run workflow) with a tag name.
 on:
   push:
@@ -11,8 +12,8 @@ on:
         description: "release tag (created on the current commit if it does not exist), e.g. v0.1.0"
         required: true
       seeds:
-        description: "fitter seeds to try, JSON list"
-        default: "[99, 44, 22]"
+        description: "fitter seed of the build tested on a Pocket, as a one-element JSON list (only change it after testing that seed)"
+        default: "[99]"
       prerelease:
         description: "mark as pre-release"
         type: boolean
@@ -40,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        seed: ${{ fromJSON(inputs.seeds || '[99, 44, 22]') }}
+        seed: ${{ fromJSON(inputs.seeds || '[99]') }}
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init --depth 1 references/SYSTEM11_MiSTer references/openfpga-PlayStation references/Laxer-PS-GTE references/PSX_MiSTer
