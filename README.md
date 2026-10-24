@@ -48,6 +48,26 @@ romsets (for example MAME 2015) match only where those sets have not changed sin
 A clone set (for example `tekkenac`) also reads its parent's zip (`tekken.zip`), as in MAME; a merged parent zip that contains the
 clone's files is enough.
 
+### Files each main version needs
+
+The zip and files below are exactly what `tools/make_games.py` checks (from each set's MRA); the CRC identifies the file, so
+a file with the right CRC is accepted whatever it is named. Every game also needs `c76.bin` (CRC `399faac7`, md5 `8ca155e5ad03571e0930d8d361749b03`) from `namcoc76.zip`.
+The other versions in `_alternatives` are listed in their MRAs (`references/SYSTEM11_MiSTer/releases/_Arcade/_alternatives`).
+
+| Game (main version) | MAME zip | Files (CRC) | Installed to `common/` |
+|---|---|---|---|
+| Dancing Eyes (DC2/VER.B) | `danceyes.zip` | `dc2verb.2l` 9f605dd9<br>`dc2verb.2j` 210d7e22<br>`dc1vera.2k` bdd9484e<br>`dc1vera.2f` 25a2f06f<br>`dc1rom0l.ic5` 8b5b4b13<br>`dc1rom0u.ic6` 93ca9bd0<br>`dc1rom1l.ic3` 380e0282<br>`dc1rom1u.ic8` 47d966a7<br>`dc1rom2l.ic4` 8f130220<br>`dc1rom2u.ic7` 24514dc6<br>`dc1rom3l.ic1` a76bcd4c<br>`dc1rom3u.ic9` 1405d123<br>`dc1sprog.6d` 96cd7788<br>`dc1wave.8k` 8ba0f6a7 | `danceyes/` |
+| Dunk Mania (DM2/VER.C) | `dunkmnia.zip` | `dm2verc.2l` f6a6c46e<br>`dm2verc.2j` 1df539ce<br>`dm1verc.2k` c8d72f78<br>`dm1verc.2f` d379dfa9<br>`dm1rom0l.ic5` 4bb5d71d<br>`dm1rom0u.ic6` c16b47c5<br>`dm1rom1l.ic3` 20dd3294<br>`dm1rom1u.ic8` 01e905d3<br>`dm1sprog.6d` de1cbc78<br>`dm1wave.8k` 883d7455 | `dunkmnia/` |
+| Kosodate Quiz My Angel 3 (KQT1/VER.A) | `myangel3.zip` | `kqt1vera.1j` df7aef8a<br>`kqt1vera.1l` ffc51c01<br>`kqt1prg0l.ic2` d67eee66<br>`kqt1prg0u.ic5` 4d1c7bf3<br>`kqt1prg1l.ic3` 298d8eeb<br>`kqt1prg1u.ic6` 911783db<br>`kqt1sprog.7e` bb1888a6<br>`kqt1wave.8k` 92ca8e4f | `myangel3/` |
+| Pocket Racer (PKR1/VER.B) | `pocketrc.zip` | `pkr1verb.2l` 300d906a<br>`pkr1verb.2j` d5f47526<br>`pkr1rom0l.ic5` 6c9b074c<br>`pkr1rom0u.ic6` a55c0906<br>`pkr1verb.6d` 9bf08992<br>`pkr1wave.8k` 72517c46 | `pocketrc/` |
+| Point Blank 2 (World, GNB2/VER.A) | `ptblank2a.zip` or `ptblank2.zip` | `gnb2vera.2l` 4926599d<br>`gnb2vera.2j` 2aba8c09<br>`gnb1vera.2k` e6335e4e<br>`gnb1vera.2f` 2bb7eb6d<br>`gnb2prg.1` 8a8e77c3<br>`gnb2prg.2` 563edc3f<br>`gnb2prg.3` 94fbe733<br>`gnb2prg.4` 1cbe79a6<br>`gnb1vera.6d` 6461ae77<br>`gnb1wave.8k` 4e19d9d6 | `ptblank2a/` |
+| Prime Goal EX (PG1/VER.A) | `primglex.zip` | `pg1vera.2l` fc15fd1a<br>`pg1vera.2j` 79955553<br>`pg1rom0u.ic5` 2a503f2f<br>`pg1rom0l.ic6` 54cef992<br>`pg1rom1u.ic3` 1ee41152<br>`pg1rom1l.ic8` 59b5a71c<br>`pg1sprog.6d` e7c3396d<br>`pg1wave.8k` fc9ad9eb | `primglex/` |
+| Soul Edge Ver. II (SO4/VER.C) | `souledge.zip` | `so4verc.2l` 12b8ae0d<br>`so4verc.2j` 938262b0<br>`so1verc.2k` 1789e399<br>`so1verc.2f` 8cffe1c3<br>`so1rom0u.ic5` e364d673<br>`so1rom0l.ic6` 9c5b0858<br>`so1rom1u.ic3` 8f9d8c5b<br>`so1rom1l.ic8` 4406ef16<br>`so1rom2u.ic4` b4baa886<br>`so1rom2l.ic7` 37c1f66e<br>`so1rom3u.ic1` f11bd521<br>`so1rom3l.ic9` 84465bcc<br>`so1sprogc.6d` 2bbc118c<br>`so1wave.8k` 0e68836b | `souledge/` |
+| Star Sweep (STP1/VER.A) | `starswep.zip` | `stp2vera.2l` a03f4bac<br>`stp2vera.2j` 590da032<br>`stp2vera.2k` ac8717d5<br>`stp2vera.2f` 42733309<br>`stp2vera.6d` 08aaaf6a<br>`stp1wave.8k` 18f30e92 | `starswep/` |
+| Tekken (TE2/VER.C) | `tekken.zip` | `te2verc.2l` a24c8c57<br>`te2verc.2j` 3224c298<br>`te1verb.2k` b9860b29<br>`te1verb.2f` 3dc01aad<br>`te1rom0l.ic5` 03786e09<br>`te1rom0u.ic6` 75d91051<br>`te1rom1l.ic3` 81416f8e<br>`te1rom1u.ic8` fa7ba433<br>`te1rom2l.ic4` 41d77846<br>`te1rom2u.ic7` a678987e<br>`te1sprog.6d` 849587e9<br>`te1wave.8k` fce6c57a | `tekken/` |
+| Tekken 2 Ver.B (TES2/VER.D) | `tekken2.zip` | `tes2verd.2l` 1aef3da8<br>`tes2verd.2j` 03787fd0<br>`tes1verd.2k` 846ace0a<br>`tes1verd.2f` 7a0663b4<br>`tes1rom0l.ic6` fc904ede<br>`tes1rom0u.ic5` 57b38f5d<br>`tes1rom1l.ic8` aa48f04b<br>`tes1rom1u.ic3` b147c543<br>`tes1rom2l.ic7` b08da52c<br>`tes1rom2u.ic4` 8a1561b8<br>`tes1rom3l.ic9` d5ac0f18<br>`tes1rom3u.ic1` 44ed509d<br>`tes1sprog.6d` af18759f<br>`tes1wave.8k` 34a34eab | `tekken2/` |
+| Xevious 3D/G (XV32/VER.B) | `xevi3dg.zip` | `xv32verb.2l` 6ffcceac<br>`xv32verb.2j` c096dd18<br>`xv31vera.2k` 3d58138e<br>`xv31vera.2f` 9e8780a2<br>`xv31rom0l.ic5` 24e1e262<br>`xv31rom0u.ic6` cae38ef3<br>`xv31rom1l.ic3` 46b4cb72<br>`xv31rom1u.ic8` be0eb5d1<br>`xv31rom2l.ic4` 8403a277<br>`xv31rom2u.ic7` ecf70432<br>`xv31sprog.6d` e50b856a<br>`xv31wave.8k` 14f25ddd | `xevi3dg/` |
+
 ### Installing games
 
 The Pocket cannot read MAME zips, so the game files are built once on a computer (Python 3 needed) with `tools/make_games.py`, which
