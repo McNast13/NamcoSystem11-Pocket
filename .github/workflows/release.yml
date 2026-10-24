@@ -12,7 +12,7 @@ on:
         required: true
       seeds:
         description: "fitter seeds to try, JSON list"
-        default: "[44, 99, 22]"
+        default: "[99, 44, 22]"
       prerelease:
         description: "mark as pre-release"
         type: boolean
@@ -27,10 +27,10 @@ concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 env:
-  # Release recipe = the game build tested on the device (leannopool44 + eeprom_blank, which is in the default variant list):
-  # no MDEC (does not fit with it yet), no gpu_divider_pool (drops polygons), no bring-up probe export, outputs on the rising edge.
-  S11_NO_MDEC: "1"
-  S11_SKIP: gpu_divider_pool,s11_bootbits
+  # Release recipe = the game build tested on the device (game22, docs/SHELL.md 2026-10-24): every default variant (real MDEC,
+  # full-rate PSRAM VRAM, the PS 0.5.6 GPU/GTE/DMA patches, the GPU timing variants), without the bring-up probe export
+  # (s11_bootbits; PK_DBG2 tied off by s11_dbg2_zero), outputs on the rising edge. Seed 99 is the seed tested on the device.
+  S11_SKIP: s11_bootbits
   S11_PROBES: s11_dbg2_zero
   QSF_MACROS: 'set_global_assignment -name VERILOG_MACRO "S11_POSEDGE_OUT=1"'
 jobs:
@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        seed: ${{ fromJSON(inputs.seeds || '[44, 99, 22]') }}
+        seed: ${{ fromJSON(inputs.seeds || '[99, 44, 22]') }}
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init --depth 1 references/SYSTEM11_MiSTer references/openfpga-PlayStation references/Laxer-PS-GTE references/PSX_MiSTer
@@ -125,11 +125,20 @@ jobs:
         run: |
           d=${{ steps.pick.outputs.dir }}
           {
-            echo "Experimental Namco System 11 core for the Analogue Pocket."
+            echo "Beta of the Namco System 11 arcade core for the Analogue Pocket (port of SYSTEM11_MiSTer, built on the openFPGA PlayStation core)."
             echo
-            echo "Unzip onto the root of the SD card. ROMs are not included: pack your own with tools/rom_packer.py (see README)."
+            echo "**Install:** unzip onto the root of the SD card. The core appears under openFPGA > Arcade Multi > Namco System 11."
+            echo "ROMs and the C76 BIOS are not included: build the game files from your own current-MAME romsets with"
+            echo "tools/make_games.py, and put c76.bin (from namcoc76.zip) in Assets/namco_system11/common/ (see the README)."
+            echo "pupdate and Pocket Sync list each game's required files."
             echo
-            echo "Build: fitter seed ${{ steps.pick.outputs.seed }}, worst-case timing slack ${{ steps.pick.outputs.slack }} ns, no MDEC (no FMV)."
+            echo "**Tested on a Pocket:** Tekken, Tekken 2, Soul Edge, Xevious 3D/G, Dancing Eyes, Star Sweep, Pocket Racer, Prime Goal EX"
+            echo "and Kosodate Quiz My Angel 3. Not tested yet: Point Blank 2 / Gunbarl and Dunk Mania."
+            echo
+            echo "**Known limitations:** to change game, quit the core and open it again (no Load game); game settings (EEPROM) are"
+            echo "not kept between launches yet; not every regional version in _alternatives has been tried."
+            echo
+            echo "Build: fitter seed ${{ steps.pick.outputs.seed }}, worst-case timing slack ${{ steps.pick.outputs.slack }} ns."
             echo
             echo '<details><summary>Fit summary</summary>'
             echo; echo '```'; cat "$d/s11full.fit.summary" 2>/dev/null; echo '```'; echo '</details>'
