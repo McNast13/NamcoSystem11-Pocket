@@ -8,10 +8,11 @@ OUTDIR/Platforms/namco_system11.json and, with --packed (rom_packer.py output ma
 OUTDIR/Assets/namco_system11/common/NAME.json plus NAME/rom_*.bin. bitstream.rbf_r is the .rbf with the bits of every byte reversed (APF requirement, same naming as the Dragon 32 core).
 Copy OUTDIR onto the Pocket's SD card. ROM images are the user's own; nothing here ships them.
 """
-import argparse, json, shutil
+import argparse, json, shutil, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 CORE_DIR = ROOT / "pocket/dist/Cores/McNast13.NamcoSystem11"
 REV = bytes(int(f"{i:08b}"[::-1], 2) for i in range(256))
 
@@ -42,6 +43,17 @@ def main():
 
     (plat / "namco_system11.json").write_text(json.dumps(
         {"platform": {"category": "Arcade Multi", "name": "Namco System 11", "manufacturer": "Namco", "year": 1994}}, indent=2) + "\n")
+
+    # the game list: one instance JSON per System 11 set with an MRA (tools/make_games.py); pupdate / Pocket Sync read the files each
+    # names as the game's required files. The ROM images themselves are the user's own (make_games.py --roms ... --sd ...).
+    import make_games
+    if make_games.ARCADE.is_dir():
+        games = make_games.sets()
+        for s in games:
+            make_games.write_instance(a.out / "Assets" / make_games.PLATFORM / make_games.CORE / make_games.instance_name(s), s)
+        print(f"{len(games)} game instances")
+    else:
+        print("warning: references/SYSTEM11_MiSTer not checked out: no game instances in the package")
 
     if a.packed:
         if not a.instance:

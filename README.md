@@ -19,40 +19,55 @@ yet. See [docs/SHELL.md](docs/SHELL.md) for the architecture and the full bring-
 
 ### BIOS and ROM files
 
-No ROMs or BIOS files are included. You need your own MAME ROM sets (as zips):
+No ROMs or BIOS files are included. You need your own **current MAME** romsets (zips), the same ones the
+[SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) core uses: its MRA files name each set's files and CRCs. Older
+romsets (for example MAME 2015) match only where those sets have not changed since; the packer reports any that do not.
 
-| Game | MAME zip(s) | MRA file (in the SYSTEM11_MiSTer submodule) |
-|---|---|---|
-| Tekken (Asia TE4 Ver.C), **tested** | `tekken.zip` (merged set containing the `tekkenac` files) | `releases/_Arcade/_alternatives/_Tekken/Tekken (Asia TE4 Ver.C).mra` |
-| Tekken (TE2 Ver.C) | `tekken.zip` | `releases/_Arcade/Tekken (TE2 Ver.C).mra` |
-| Tekken 2 Ver.B (TES2-VER.D) | `tekken2.zip` | `releases/_Arcade/Tekken 2 Ver.B (TES2-VER.D).mra` |
-| Soul Edge Ver. II, Dunk Mania, Xevious 3D-G, Prime Goal EX, Star Sweep, Dancing Eyes, Pocket Racer, Point Blank 2, My Angel 3 | the MAME zip named in each MRA | `releases/_Arcade/*.mra` |
+- **BIOS:** `c76.bin`, the C76 sound CPU's BIOS from `namcoc76.zip`, shared by every game. It goes in
+  `Assets/namco_system11/common/c76.bin` (md5 `8ca155e5ad03571e0930d8d361749b03`).
+- **Games:** the core ships a game list of 35 sets (every MRA of the MiSTer core, main versions and alternatives), one instance
+  file each in `Assets/namco_system11/McNast13.NamcoSystem11/`. Each names the files its game needs in
+  `Assets/namco_system11/common/<MAME set name>/`, so **pupdate** and **Pocket Sync** list them as the core's required files and show
+  which are missing. Only Tekken (Asia, TE4/VER.C) and Tekken 2 Ver.B (US, TES3/VER.D) have been tested on a Pocket so far.
 
-Every game also needs the **C76 sound CPU BIOS**, `namcoc76.zip` (it contains `c76.bin`). The MRA files name the exact files and
-CRCs; the packer checks every CRC and stops if one is wrong or missing, so a mismatched or incomplete zip is reported, not loaded.
-The MRA files come from the [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) core this port is based on.
+| Game | Current MAME sets |
+|---|---|
+| Tekken | `tekken` (TE2/VER.C), `tekkenac`, `tekkenb`, `tekkenjb` |
+| Tekken 2 | `tekken2` (TES2/VER.D), `tekken2ud`, `tekken2ub`, `tekken2b`, `tekken2a`, `tekken2ua`, `tekken2jb`, `tekken2jc` |
+| Soul Edge | `souledge` (Ver. II, SO4/VER.C), `souledgeuc`, `souledgea`, `souledgeua`, `souledgeja` |
+| Xevious 3D/G | `xevi3dg`, `xevi3dga`, `xevi3dgj` |
+| Dancing Eyes | `danceyes`, `danceyesu`, `danceyesj` |
+| Dunk Mania | `dunkmnia`, `dunkmniajc` |
+| Point Blank 2 / Gunbarl | `ptblank2a`, `ptblank2b`, `ptblank2c`, `ptblank2ua`, `gunbarla` |
+| Star Sweep | `starswep`, `starswepj` |
+| Pocket Racer, Prime Goal EX, Kosodate Quiz My Angel 3 | `pocketrc`, `primglex`, `myangel3` |
 
-### Installing a game
+A clone set (for example `tekkenac`) also reads its parent's zip (`tekken.zip`), as in MAME; a merged parent zip that contains the
+clone's files is enough.
 
-The Pocket cannot read MAME zips directly, so each game is converted once on a computer (Python 3 needed):
+### Installing games
 
-1. Clone this repository with the MiSTer core submodule:
+The Pocket cannot read MAME zips, so the game files are built once on a computer (Python 3 needed) with `tools/make_games.py`, which
+follows each set's MRA and checks every file's CRC:
+
+1. Clone this repository with the MiSTer core submodule (it holds the MRA files):
    ```
    git clone https://github.com/McNast13/NamcoSystem11-Pocket
    cd NamcoSystem11-Pocket
    git submodule update --init references/SYSTEM11_MiSTer
    ```
-2. Put the game's zip and `namcoc76.zip` in one folder, for example `~/roms`.
-3. Run the packer with the game's MRA, the ROM folder, an output folder and a short name for the game:
+2. Put your romset zips and `namcoc76.zip` in one folder, for example `~/roms`.
+3. Build every game it finds there straight onto the SD card (or into a folder you copy to the card's root):
    ```
-   python3 tools/rom_packer.py "references/SYSTEM11_MiSTer/releases/_Arcade/_alternatives/_Tekken/Tekken (Asia TE4 Ver.C).mra" \
-       --roms ~/roms --out ~/packed/tekken1 --instance tekken1
+   python3 tools/make_games.py --roms ~/roms --sd /Volumes/<your SD card>
    ```
-   This writes `tekken1.json` and the `rom_*.bin` files into `~/packed/tekken1`.
-4. Copy them to the SD card:
-   - `tekken1.json` into `Assets/namco_system11/common/`
-   - the `rom_*.bin` files into `Assets/namco_system11/common/tekken1/` (a folder named after the game)
-5. On the Pocket, open **Namco System 11** and pick the game from the list.
+   It writes `Assets/namco_system11/common/c76.bin`, one `common/<set>/` folder per game, and that game's instance file with the
+   files' MD5s, and lists the sets it found no (or no matching) zip for.
+4. On the Pocket, open **Namco System 11** and pick the game from the list.
+
+**Switching games:** quit the core (Pocket menu > Quit) and open it again, then pick the next game. There is no "Load game" entry in
+the core's settings, as in the PlayStation core: loading a new game into the running core does not restart these boards cleanly,
+so the core is always started fresh for each game.
 
 Game settings (the EEPROM) start blank at every launch for now, so changes made in the game's test menu are not kept yet.
 
@@ -61,8 +76,7 @@ Game settings (the EEPROM) start blank at every launch for now, so changes made 
 To build and package, use `tools/local_build.sh` (local Quartus in Docker, see [docs/LOCAL_BUILD.md](docs/LOCAL_BUILD.md)) or GitHub
 Actions (`pocket-shell.yml` with `project=s11full`). `tools/build_core_tree.py` assembles the source tree, Quartus compiles
 `pocket/project/s11full`, `tools/package_pocket.py` makes the SD-card tree, and
-`tools/rom_packer.py GAME.mra --roms DIR --out DIR --instance NAME` turns your own MAME ROM zips into the data-slot files and
-the instance JSON. No ROMs are included or distributed. Releases are built by `release.yml` when a `v*` tag is pushed.
+`tools/make_games.py` turns your own MAME ROM zips into the game files and the game list (`tools/rom_packer.py` packs one MRA). No ROMs are included or distributed. Releases are built by `release.yml` when a `v*` tag is pushed.
 
 ## Use of AI
 

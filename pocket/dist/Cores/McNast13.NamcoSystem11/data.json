@@ -2,7 +2,7 @@
   "data": {
     "magic": "APF_VER_1",
     "data_slots": [
-      { "name": "Game",           "id": 0, "required": true,  "parameters": "0x13", "extensions": ["json"] },
+      { "name": "Game",           "id": 0, "required": true,  "parameters": "0x12", "extensions": ["json"] },
       { "name": "Program",        "id": 1, "required": true,  "parameters": "0x08", "address": "0x00000000", "size_maximum": "0x400000" },
       { "name": "Config",         "id": 2, "required": true,  "parameters": "0x08", "address": "0x01000000", "size_maximum": "0x10" },
       { "name": "Fixed ROM",      "id": 3, "required": false, "parameters": "0x08", "address": "0x02000000", "size_maximum": "0x280000" },
@@ -10,7 +10,7 @@
       { "name": "Banked ROM (2)", "id": 5, "required": false, "parameters": "0x08", "address": "0x04000000", "size_maximum": "0x1000000" },
       { "name": "C76 program",    "id": 6, "required": true,  "parameters": "0x08", "address": "0x06000000", "size_maximum": "0x40000" },
       { "name": "Wave ROM",       "id": 7, "required": true,  "parameters": "0x08", "address": "0x07000000", "size_maximum": "0x400000" },
-      { "name": "C76 BIOS",       "id": 8, "required": true,  "parameters": "0x08", "address": "0x08000000", "size_maximum": "0x4000" },
+      { "name": "C76 BIOS",       "id": 8, "required": true,  "parameters": "0x08", "filename": "c76.bin", "md5": "8ca155e5ad03571e0930d8d361749b03", "address": "0x08000000", "size_maximum": "0x4000" },
       { "name": "EEPROM",         "id": 9, "required": false, "parameters": "0x24", "nonvolatile": true, "extensions": ["sav"], "address": "0x09000000", "size_maximum": "0x1000" }
     ]
   }
