@@ -28,7 +28,10 @@ romsets (for example MAME 2015) match only where those sets have not changed sin
 - **Games:** the core ships a game list of 35 sets (every MRA of the MiSTer core, main versions and alternatives), one instance
   file each in `Assets/namco_system11/McNast13.NamcoSystem11/`. Each names the files its game needs in
   `Assets/namco_system11/common/<MAME set name>/`, so **pupdate** and **Pocket Sync** list them as the core's required files and show
-  which are missing. Only Tekken (Asia, TE4/VER.C) and Tekken 2 Ver.B (US, TES3/VER.D) have been tested on a Pocket so far.
+  which are missing. The main version of each game (the MRAs at the top of the MiSTer core's `_Arcade` folder, first in each row
+  below) is at the top of the list; the other versions are in an `_alternatives` subfolder (pupdate's "skip alternative assets"
+  setting skips it). Only Tekken (Asia, TE4/VER.C) and Tekken 2 Ver.B (US, TES3/VER.D), both alternatives, have been tested on a
+  Pocket so far.
 
 | Game | Current MAME sets |
 |---|---|

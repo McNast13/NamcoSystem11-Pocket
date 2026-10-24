@@ -5,6 +5,8 @@ SYSTEM11_MiSTer core has an MRA for (references/SYSTEM11_MiSTer/releases/_Arcade
 SD-card layout (APF; the same convention the PlayStation core's instances use on hardware):
   Assets/namco_system11/McNast13.NamcoSystem11/<Title>.json   one instance per set: the game list, shipped with the core. pupdate and
                                                                 Pocket Sync read the files each one names as the game's required files.
+                                                                Main versions (the MRAs in _Arcade/) at the top, the other versions
+                                                                (_Arcade/_alternatives/) in a subfolder _alternatives/.
   Assets/namco_system11/common/<set>/rom_<index>.bin           that set's images, built from its MRA (rom_packer.py; every CRC checked)
   Assets/namco_system11/common/c76.bin                         the C76 sound CPU BIOS (namcoc76.zip), shared by every game: data slot 8
                                                                 names it in data.json, so the tools list it as the core's BIOS
@@ -32,7 +34,7 @@ def sets():
     out = []
     for f in sorted(glob.glob(str(ARCADE / "*.mra")) + glob.glob(str(ARCADE / "_alternatives/*/*.mra"))):
         r = ET.parse(f).getroot()
-        out.append({"set": r.findtext("setname"), "title": r.findtext("name"), "mra": f,
+        out.append({"set": r.findtext("setname"), "title": r.findtext("name"), "mra": f, "alt": "/_alternatives/" in f,
                     "indices": sorted({int(x.get("index")) for x in r.iter("rom")})})
     return out
 
@@ -50,7 +52,10 @@ def files_of(s, sizes=None):
 
 
 def instance_name(s):
-    return s["title"].replace("/", "-").replace(":", " -") + ".json"
+    """Path of the set's instance under the core's Assets folder: main versions at the top, the others in _alternatives/
+    (as the MiSTer core's _Arcade folder; pupdate's skip_alternative_assets setting skips that folder)."""
+    name = s["title"].replace("/", "-").replace(":", " -") + ".json"
+    return f"_alternatives/{name}" if s["alt"] else name
 
 
 def write_instance(path, s, sizes=None, md5s=None):
