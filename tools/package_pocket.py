@@ -17,6 +17,20 @@ CORE_DIR = ROOT / "pocket/dist/Cores/McNast13.NamcoSystem11"
 REV = bytes(int(f"{i:08b}"[::-1], 2) for i in range(256))
 
 
+ASSETS_README = """Namco System 11 game files go in this folder. None are included: they are built from your own current-MAME romsets.
+
+- c76.bin: the C76 sound CPU BIOS, shared by every game. Copy it out of namcoc76.zip into this folder
+  (CRC 399faac7, md5 8ca155e5ad03571e0930d8d361749b03).
+- One folder per game, named after its MAME set (tekken2/, souledge/, xevi3dg/, ...), holding rom_0.bin ... rom_7.bin.
+  Build them with tools/make_games.py from https://github.com/McNast13/NamcoSystem11-Pocket:
+
+      python3 tools/make_games.py --roms <folder with your zips and namcoc76.zip> --sd <SD card root>
+
+The game list is in ../McNast13.NamcoSystem11/ (main versions; other versions in _alternatives/). pupdate and Pocket Sync
+show which files each game still needs. To change game, quit the core and open it again.
+"""
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rbf", required=True, type=Path)
@@ -54,6 +68,12 @@ def main():
         print(f"{len(games)} game instances")
     else:
         print("warning: references/SYSTEM11_MiSTer not checked out: no game instances in the package")
+
+    # where the user's files go, as in the Dragon 32 core's release (a README beside the files it asks for), and the licence
+    common = a.out / "Assets" / "namco_system11" / "common"
+    common.mkdir(parents=True, exist_ok=True)
+    (common / "README.md").write_text(ASSETS_README)
+    shutil.copy(ROOT / "LICENSE", a.out / "LICENSE.txt")
 
     if a.packed:
         if not a.instance:

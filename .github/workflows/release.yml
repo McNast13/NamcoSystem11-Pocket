@@ -117,8 +117,8 @@ jobs:
           j["core"]["metadata"]["date_release"] = datetime.date.today().isoformat()
           json.dump(j, open(p, "w"), indent=2)
           EOF
-          zip_name="NamcoSystem11-Pocket-${TAG}.zip"
-          (cd "$pkg" && zip -r "$GITHUB_WORKSPACE/$zip_name" Cores Platforms)
+          zip_name="NamcoSystem11-pocket-core-${TAG}.zip"
+          (cd "$pkg" && zip -r "$GITHUB_WORKSPACE/$zip_name" Cores Platforms Assets LICENSE.txt)
           echo "zip=$zip_name" >> "$GITHUB_OUTPUT"
       - name: Release notes
         shell: bash
@@ -152,4 +152,4 @@ jobs:
           flags=""
           [ "${{ github.event_name }}" = push ] || [ "${{ inputs.prerelease }}" = true ] && flags="$flags --prerelease"
           [ "${{ inputs.draft }}" = true ] && flags="$flags --draft"
-          gh release create "$TAG" "${{ steps.zip.outputs.zip }}" --target "$GITHUB_SHA" --title "$TAG" --notes-file notes.md --generate-notes $flags
+          gh release create "$TAG" "${{ steps.zip.outputs.zip }}" --target "$GITHUB_SHA" --title "Namco System 11 $TAG" --notes-file notes.md --generate-notes $flags
