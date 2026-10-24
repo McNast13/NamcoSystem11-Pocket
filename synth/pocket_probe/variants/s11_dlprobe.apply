@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""Bring-up probe (probe15): what reaches the core when the user loads another game from the Pocket menu while the core runs?
+game20/21: after a switch the C76 restarts but plays Tekken 1's "good morning" whatever game was picked, so the new game's files
+(at least the C76 SPROG/wave) never reached SDRAM, and s11_reload's re-arm (on an index-0 download) never fired.
+Counts, since power-up (saturating 8-bit unless noted), in SYSTEM11.sv:
+  row 5 = {ioctl_download sessions for index 0 (program), 1 (config), 3 (banked ROM), 6 (C76 SPROG)}
+  row 7 = {sessions for index 7 (wave), 8 (C76 BIOS), 9 (EEPROM), 2 (fixed ROM)}
+  row 6 = ioctl_wr pulses, 32-bit (every download word)
+  row 8 = {main-RAM fills completed, s11_reload re-arms, RESET (host reset) rising edges, {ram_cleared, clr_state[2:0], 4'b0}}
+  row 9 = ioctl_wr pulses since the last RESET rising edge, 32-bit
+  row 1 = {clr_run[24], ee_fill idle, ee_loaded, 5'b0, last ioctl_index while downloading, 16'b0}
+Needs s11_bootbits.apply (the PK_DBG2 assign it adds) and S11_FORCE_DIAG. Run AFTER pocket_emu.apply. Usage: s11_dlprobe.apply OUTDIR
+"""
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1]) / "SYSTEM11.sv"
+t = p.read_text()
+
+
+def sub(old, new):
+    global t
+    assert t.count(old) == 1, (old, t.count(old))
+    t = t.replace(old, new)
+
+
+sub("// (The sentinel-readback state machine that lived here is excluded from the",
+    """// s11_dlprobe.apply (probe15): download / reset / fill counters
+reg  [7:0]  dp_n0 = 0, dp_n1 = 0, dp_n2 = 0, dp_n3 = 0, dp_n6 = 0, dp_n7 = 0, dp_n8 = 0, dp_n9 = 0;
+reg  [7:0]  dp_fills = 0, dp_rearms = 0, dp_resets = 0, dp_last_idx = 0;
+reg  [31:0] dp_wr = 0, dp_wr_sess = 0;
+reg         dp_dl_d = 0, dp_rst_d = 0, dp_clr_d = 0;
+reg  [2:0]  dp_state_d = 0;
+function [7:0] inc8(input [7:0] v); inc8 = (v == 8'hFF) ? v : v + 1'b1; endfunction
+always @(posedge clk_1x) begin
+   dp_dl_d <= ioctl_download; dp_rst_d <= RESET; dp_clr_d <= ram_cleared; dp_state_d <= clr_state;
+   if (ioctl_download & ~dp_dl_d) begin
+      case (ioctl_index)
+         8'd0: dp_n0 <= inc8(dp_n0);  8'd1: dp_n1 <= inc8(dp_n1);  8'd2: dp_n2 <= inc8(dp_n2);  8'd3: dp_n3 <= inc8(dp_n3);
+         8'd6: dp_n6 <= inc8(dp_n6);  8'd7: dp_n7 <= inc8(dp_n7);  8'd8: dp_n8 <= inc8(dp_n8);  8'd9: dp_n9 <= inc8(dp_n9);
+         default: ;
+      endcase
+   end
+   if (ioctl_download) dp_last_idx <= ioctl_index;
+   if (ioctl_wr) begin dp_wr <= dp_wr + 1'b1; dp_wr_sess <= dp_wr_sess + 1'b1; end
+   if (RESET & ~dp_rst_d) begin dp_resets <= inc8(dp_resets); dp_wr_sess <= 32'd0; end
+   if (ram_cleared & ~dp_clr_d) dp_fills <= inc8(dp_fills);
+   if (dp_state_d == CLR_DONE && clr_state == CLR_IDLE) dp_rearms <= inc8(dp_rearms);
+end
+wire [287:0] dp_dbg = {32'd0, dp_n0, dp_n1, dp_n3, dp_n6, dp_n7, dp_n8, dp_n9, dp_n2, dp_wr,
+                       dp_fills, dp_rearms, dp_resets, ram_cleared, clr_state, 4'd0, dp_wr_sess, 64'd0,
+                       clr_run[24], ee_fill[10], ee_loaded, 5'd0, dp_last_idx, 16'd0};
+
+// (The sentinel-readback state machine that lived here is excluded from the""")
+# rows: 5=[255:224] 7=[223:192] 6=[191:160] 8=[159:128] 9=[127:96] 1=[31:0]
+sub("assign PK_DBG2 = s11_boot_dbg;", "assign PK_DBG2 = dp_dbg;   // s11_dlprobe.apply")
+p.write_text(t)
+print("s11_dlprobe applied")

@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Bring-up probe (probe14): does the GPU finish each frame before vblank? (needs s11_bootbits.apply and S11_FORCE_DIAG)
+On game14-16 the character polygons and the HUD (energy bars, round, timer) drop out together in some views. The game draws far to near
+and the HUD last, so a frame shown before the GPU reaches the end of its list loses exactly those. This counts, per vblank interval
+(irq_VBLANK rising edge, clk1x = 33.8688 MHz, ~564,480 clocks per 60 Hz frame):
+  busy = GPU not ready for a command (GPUSTAT bit 26 = 0) or its command FIFO not empty (bit 28 = 0)
+Rows (s11_boot_dbg -> PK_DBG2):
+  5 = {vblank intervals counted [31:16], intervals where the GPU was still busy at vblank [15:0]}
+  7 = largest busy-clock count in one interval
+  6 = busy clocks in the last interval
+  8 = largest DMA-to-GPU write count in one interval (DMA_GPU_writeEna clocks)
+  9 = DMA-to-GPU writes in the last interval
+  1 = largest number of clocks the GPU stayed busy after a vblank (how far a frame overran)
+Usage: s11_frameprobe.apply OUTDIR   (S11_PROBES, after pocket_emu.apply)
+"""
+import re, sys
+from pathlib import Path
+
+top = Path(sys.argv[1]) / "rtl/psx_top.vhd"
+t = top.read_text()
+m = re.search(r"   s11_boot_dbg <= \(.*?;\n(?=   dbg_reached_game <= s11_reached_game;)", t, flags=re.S)
+assert m, "s11_boot_dbg assignment not found (s11_bootbits.apply must be applied)"
+t = t[:m.start()] + """   -- s11_frameprobe.apply (probe14): GPU busy / DMA2 per vblank interval
+   s11_frameprobe : process(clk1x)
+      variable vbl_d, busy, busy_at_vbl : std_logic := '0';
+      variable n_frames, n_over : unsigned(15 downto 0) := (others => '0');
+      variable c_busy, c_dma, c_tail, m_busy, m_dma, m_tail, l_busy, l_dma : unsigned(31 downto 0) := (others => '0');
+      variable in_tail : std_logic := '0';
+   begin
+      if rising_edge(clk1x) then
+         busy := (not gpustat_sig(26)) or (not gpustat_sig(28));
+         if busy = '1' then c_busy := c_busy + 1; end if;
+         if DMA_GPU_writeEna = '1' then c_dma := c_dma + 1; end if;
+         if in_tail = '1' then
+            if busy = '1' then c_tail := c_tail + 1; else in_tail := '0'; if c_tail > m_tail then m_tail := c_tail; end if; end if;
+         end if;
+         if irq_VBLANK = '1' and vbl_d = '0' then
+            if n_frames /= x"FFFF" then n_frames := n_frames + 1; end if;
+            if busy = '1' then
+               if n_over /= x"FFFF" then n_over := n_over + 1; end if;
+               in_tail := '1'; c_tail := (others => '0');
+            end if;
+            if c_busy > m_busy then m_busy := c_busy; end if;
+            if c_dma > m_dma then m_dma := c_dma; end if;
+            l_busy := c_busy; l_dma := c_dma;
+            c_busy := (others => '0'); c_dma := (others => '0');
+         end if;
+         vbl_d := irq_VBLANK;
+         s11_boot_dbg <= x"00000000" & std_logic_vector(n_frames) & std_logic_vector(n_over) & std_logic_vector(m_busy) &
+                         std_logic_vector(l_busy) & std_logic_vector(m_dma) & std_logic_vector(l_dma) &
+                         x"0000000000000000" & std_logic_vector(m_tail);
+      end if;
+   end process;
+""" + t[m.end():]
+top.write_text(t)
+print("s11_frameprobe applied")

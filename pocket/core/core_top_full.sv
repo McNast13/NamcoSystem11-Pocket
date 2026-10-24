@@ -274,8 +274,8 @@ module core_top (
     end
 
     // ---- clocks ----
-    wire clk1x, clk2x, clk3x, clk_vid, clk_vid90, pll_locked;
-    s11_pll pll (.clk_74a(clk_74a), .rst(1'b0), .clk1x(clk1x), .clk2x(clk2x), .clk3x(clk3x),
+    wire clk1x, clk2x, clk3x, clk_vid, clk_vid90, pll_locked, vram_chip_clk;
+    s11_pll pll (.clk_74a(clk_74a), .rst(1'b0), .clk1x(clk1x), .clk2x(clk2x), .clk3x(clk3x), .vram_chip_clk(vram_chip_clk),
                  .clkvid(clk_vid), .clkvid90(clk_vid90), .locked(pll_locked));
     reg [1:0] lock_s74 = 2'b00;
     reg [17:0] sdram_wait = 18'd0;                    // ~3.5 ms after lock: the controller powers the chip up and sets the mode register
@@ -482,8 +482,8 @@ module core_top (
     assign cram0_a = 0, cram0_dq = 16'bz, cram0_clk = 0, cram0_adv_n = 1, cram0_cre = 0, cram0_ce0_n = 1, cram0_ce1_n = 1, cram0_oe_n = 1, cram0_we_n = 1, cram0_ub_n = 1, cram0_lb_n = 1;
     assign cram1_a = 0, cram1_dq = 16'bz, cram1_clk = 0, cram1_adv_n = 1, cram1_cre = 0, cram1_ce0_n = 1, cram1_ce1_n = 1, cram1_oe_n = 1, cram1_we_n = 1, cram1_ub_n = 1, cram1_lb_n = 1;
 `else
-    s11_vram vram (
-        .clk2x(clk2x), .reset(unlock_s2x[2]), .park(~reset_n),
+    s11_vram #(.FULL_RATE(1'b1)) vram (
+        .clk2x(clk2x), .vram_chip_clk(vram_chip_clk), .reset(unlock_s2x[2]), .park(~reset_n),
         .ddr_busy(vr_busy), .ddr_burstcnt(vr_burst), .ddr_addr(vr_addr[24:0]), .ddr_dout(vr_dout),
         .ddr_dout_ready(vr_dout_ready), .ddr_rd(vr_rd), .ddr_din(vr_din), .ddr_be(vr_be), .ddr_we(vr_we),
         .cram0_a(cram0_a), .cram0_dq(cram0_dq), .cram0_clk(cram0_clk), .cram0_adv_n(cram0_adv_n), .cram0_cre(cram0_cre),

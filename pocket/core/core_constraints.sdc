@@ -49,3 +49,24 @@ if {[get_collection_size $sdram_clk3x] == 1 && [get_collection_size $sdram_in] =
 } else {
     post_message -type warning "S11_SDRAM_IO: collections clk=[get_collection_size $sdram_clk3x] in=[get_collection_size $sdram_in] out=[get_collection_size $sdram_out] (want 1/16/37), SDRAM pin constraints NOT applied"
 }
+
+# PSRAM VRAM at full rate (s11_vram FULL_RATE=1, values from the PlayStation core 0.5.6 pocket.sdc): the chip clock is the fourth CPU
+# PLL output (clk2x 10047 ps late) through a DDIO output. Chip timing (AS1C8M16PL): inputs set up 3 ns / held 2 ns around the chip
+# clock; read data valid 9 ns after a chip edge until 2 ns after the next; a word is registered in dq_r at the second clk2x edge after
+# the edge that launched it (setup multicycle 2).
+set vram_chip {ic|pll|pll|general[3].gpll~PLL_OUTPUT_COUNTER|divclk}
+if {[get_collection_size [get_pins -nowarn $vram_chip]] > 0} {
+    foreach c {cram0 cram1} {
+        create_generated_clock -name ${c}_clk_out -source [get_pins $vram_chip] [get_ports ${c}_clk]
+        set outs [get_ports "${c}_a[*] ${c}_dq[*] ${c}_adv_n ${c}_cre ${c}_ce0_n ${c}_ce1_n ${c}_oe_n ${c}_we_n ${c}_ub_n ${c}_lb_n"]
+        set_output_delay -clock ${c}_clk_out -max 3.0 -add_delay $outs
+        set_output_delay -clock ${c}_clk_out -min -2.0 -add_delay $outs
+        set_input_delay -clock ${c}_clk_out -max 9.0 -add_delay [get_ports ${c}_dq[*]]
+        set_input_delay -clock ${c}_clk_out -min 2.0 -add_delay [get_ports ${c}_dq[*]]
+        set_multicycle_path -setup 2 -from [get_clocks ${c}_clk_out] -to [get_registers {*|psx_vram_psram:vram|dq_r[*]}]
+        set_multicycle_path -hold 1 -from [get_clocks ${c}_clk_out] -to [get_registers {*|psx_vram_psram:vram|dq_r[*]}]
+    }
+    post_message -type info "S11_VRAM_FULL_RATE constraints applied"
+} else {
+    post_message -type warning "S11_VRAM_FULL_RATE: PLL output $vram_chip not found, PSRAM pin constraints NOT applied"
+}

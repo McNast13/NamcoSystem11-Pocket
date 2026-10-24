@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""C76 periodic interrupts locked to the video frame instead of a free-running 2^18-cycle counter.
+
+Upstream fires IRQ0 and IRQ2 every 2^18 C76 clocks (16.9344 MHz -> 64.6 Hz), while the game's frame loop runs at the video rate
+(~60 Hz; MAME uses two 60 Hz timers). The C76 reads the controls and writes the one-frame Start/button edge bytes (shared BD02 etc.)
+in that interrupt, so at 64.6 Hz it runs twice inside one game frame about every 14 frames: an edge can appear and clear between two
+game reads, or move by a frame. Tight inputs (Tekken 2's 10-hit combos) then fail on the S11 core but not on the PlayStation core.
+Here IRQ0 fires on each rising edge of the frame's vblank (synchronised into clk) and IRQ2 2^17 C76 clocks (7.7 ms) later, keeping
+the two at separate phases as upstream requires (INT0 must run before any other interrupt). Each is held high 256 C76 clocks, as before.
+Usage: c76_vblank_irq.apply OUTDIR
+"""
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+
+
+def sub(path, old, new):
+    t = path.read_text()
+    assert t.count(old) == 1, (path.name, old, t.count(old))
+    path.write_text(t.replace(old, new))
+
+
+c = out / "rtl/c76_sound.vhd"
+sub(c, "      in_player1 : in  std_logic_vector(7 downto 0);",
+       "      vblank_in  : in  std_logic := '0';   -- c76_vblank_irq.apply: video vblank (any clock domain)\n"
+       "      in_player1 : in  std_logic_vector(7 downto 0);")
+sub(c, """         if reset='1' then
+            irqcnt <= (others=>'0'); irq0 <= '0'; irq2 <= '0';
+         elsif ce='1' then
+            irqcnt <= irqcnt + 1;""",
+       """         vbl_s <= vbl_s(1 downto 0) & vblank_in;   -- c76_vblank_irq.apply: synchroniser + edge detect
+         if reset='1' then
+            irqcnt <= (others=>'0'); irq0 <= '0'; irq2 <= '0';
+         elsif vbl_s(2 downto 1) = "01" then
+            irqcnt <= (others=>'0');               -- frame start: IRQ0 window opens
+         elsif ce='1' then
+            if irqcnt(IRQ_LOG2-1 downto 0) /= (2**(IRQ_LOG2-1))+256 then
+               irqcnt <= irqcnt + 1;               -- runs to the end of the IRQ2 pulse, then waits for the next frame
+            end if;""")
+sub(c, "   signal irq0, irq2 : std_logic := '0';",
+       "   signal irq0, irq2 : std_logic := '0';\n   signal vbl_s : std_logic_vector(2 downto 0) := (others => '0');   -- c76_vblank_irq.apply")
+
+s = out / "SYSTEM11.sv"
+sub(s, "   .clk(clk_1x), .ce(c76_ce), .reset(reset), .sample_ce(snd_sample_ce),",
+       "   .clk(clk_1x), .ce(c76_ce), .reset(reset), .sample_ce(snd_sample_ce), .vblank_in(PK_VID_VBL),   // c76_vblank_irq.apply")
+print("c76_vblank_irq: IRQ0 on vblank, IRQ2 2^17 clocks later")

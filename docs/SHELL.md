@@ -259,3 +259,23 @@ Builds now run locally (`tools/local_build.sh`, docs/LOCAL_BUILD.md; same image 
   remaining GPU variants (gpu_area_reg, gpu_rect_timing, gpu_read_late, no_texfilter) against MAME frames.
 - MAME reference tips: C76 device tag `:c76`; keep write/read tap objects referenced or they are collected; debugger works with
   `-debug -debugger none`, breakpoint actions log with `logerror` plus `-log`; `dasm file,addr,len` via `manager.machine.debugger:command`.
+
+## 2026-10-24: full-rate VRAM fixes the polygon/HUD glitches; no in-core game switching
+- **Polygons and HUD dropping out together** (game14-16) were GPU frame overruns, not logic: probe14 (`s11_frameprobe.apply`) counted
+  1,575 of 15,380 vblanks (~10%) with the GPU still busy, worst 13 ms past vblank. MAME (`tools/mame/framesync.lua`) shows Tekken
+  flips the display at vblank without waiting for the GPU (it only waits before sending the next DMA list), so an overrun shows a
+  half-drawn frame: the near polygons and the HUD are drawn last.
+- **Fix: PSRAM VRAM at full rate**, as the PlayStation core 0.5.6 release ships (checked in its release source tarball): chip clock
+  67.7 MHz instead of 33.9 MHz, about twice the VRAM bandwidth. `pocket/core/memory/psx_vram_psram.sv` = PS v0.5.6, a fourth CPU PLL
+  output (`vram_chip_clk`, clk2x 10047 ps late), `s11_vram` FULL_RATE (DDIO chip clock, latency 5), PS pin constraints in
+  `core_constraints.sdc`. game17: Tekken 1 and 2 "working a lot better" on the device.
+- Full rate adds a VRAM-busy -> GPU request path on clk2x; `gpu_read_late` (and `gpu_area_reg`, `gpu_rect_timing`) must stay in
+  game builds (they had been skipped since the game16 A/B). Check clk2x setup in `s11full.sta.summary` before using a build.
+- `c76_vblank_irq.apply`: the C76's IRQ0 now fires on the video vblank (IRQ2 2^17 clocks later) instead of a free-running 64.6 Hz
+  counter, as on the hardware and in MAME. It did not change Tekken 2's combo timing by itself.
+- **Game switching**: loading another game from the menu while the core runs does not work (the C76 restarts but the new game's files
+  never reach SDRAM: Tekken 1's "good morning" plays whatever was picked). As the PlayStation core does for the same reason, the
+  Game slot is not user-reloadable (`parameters 0x12`), so there is no "Load game" entry; quit the core to change games. A reload
+  fix (`s11_reload`, games 18-21) was dropped; `s11_dlprobe.apply` (download counters, probe15) was written but not built.
+- COH-100 (old GPU) handling checked against MAME: the core's gputype1 is on for every Tekken 1 set and the older Tekken 2 sets
+  (platform byte bit 5), off for Tekken 2 VER.D and Soul Edge (COH-110), matching MAME.
