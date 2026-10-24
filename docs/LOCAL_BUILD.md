@@ -24,3 +24,10 @@ Outputs: reports and `paths.*` in `pocket/project/output_files/`, SD-card tree i
 - Speed: a full s11full compile takes ~16 min on an M4 (16 GB, OrbStack memory limit 12 GB), faster than the Actions runner (~22 min).
 - To compare with Actions, use the same `qsf_extra` and seed; Quartus results are seed-sensitive, and the design is at 99% ALMs.
 - Free local debugging before any build: iverilog and `nvc` simulations (tests/, tools/s11sim).
+
+## Fitter seeds and releases
+
+A seed is not good or bad by itself: every design change gives each seed a completely different placement. Seed 99 was the fixed
+seed for bring-up A/B builds (so two builds differed only by the change under test), not because it beat the others. For a release
+candidate, build a few seeds, compare their timing (`s11full.sta.summary`, above all the clk2x `general[1]` setup and the hold
+checks), test the chosen one on a Pocket, and release exactly that bitstream (byte-compare it). v0.1.1 is seed 22.
