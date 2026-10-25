@@ -133,8 +133,8 @@ jobs:
             echo "tools/make_games.py, and put c76.bin (from namcoc76.zip) in Assets/namco_system11/common/ (see the README)."
             echo "pupdate and Pocket Sync list each game's required files."
             echo
-            echo "**Tested on a Pocket:** Tekken, Tekken 2, Soul Edge, Xevious 3D/G, Dancing Eyes, Star Sweep, Pocket Racer, Prime Goal EX"
-            echo "and Kosodate Quiz My Angel 3. Not tested yet: Point Blank 2 / Gunbarl and Dunk Mania."
+            echo "**Tested on a Pocket:** Tekken, Tekken 2, Soul Edge, Xevious 3D/G, Dancing Eyes, Pocket Racer, Prime Goal EX"
+            echo "and Kosodate Quiz My Angel 3. Not tested yet: Point Blank 2 / Gunbarl, Dunk Mania and Star Sweep."
             echo
             echo "**Known limitations:** to change game, quit the core and open it again (no Load game); game settings (EEPROM) are"
             echo "not kept between launches yet; not every regional version in _alternatives has been tried."

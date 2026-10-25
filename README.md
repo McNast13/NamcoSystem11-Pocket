@@ -3,18 +3,36 @@
 Port of [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) (itself derived from
 [PSX_MiSTer](https://github.com/MiSTer-devel/PSX_MiSTer)) to the Analogue Pocket.
 
-**Status:** experimental. Tekken (Asia, TE4 Ver.C) is playable on a real Pocket: intro FMV, credits, player select and fights.
-Some polygons still drop out at some angles, and the design uses about 98% of the FPGA. No other game has been tested on the Pocket
-yet. See [docs/SHELL.md](docs/SHELL.md) for the architecture and the full bring-up log, and
-[docs/BASELINE.md](docs/BASELINE.md) for the measurements. **Next goal:** playable Tekken 2 (TES3 VER.D / TES2 VER.D).
+**Status:** experimental. Latest release: [v0.1.2](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
+Tested as working on a real Pocket: Tekken, Tekken 2, Soul Edge, Prime Goal EX, Pocket Racer, Kosodate Quiz My Angel 3, Dancing
+Eyes and Xevious 3D/G. Dunk Mania, Point Blank 2 and Star Sweep have not been tested yet. The design uses about 98% of the FPGA
+(18,089 / 18,480 ALMs). See [docs/SHELL.md](docs/SHELL.md) for the architecture and the full bring-up log, and
+[docs/BASELINE.md](docs/BASELINE.md) for the measurements.
+
+What the core has so far:
+
+- The System 11 board on the PlayStation core: R3000 CPU, GPU, GTE and MDEC (the FMV decoder, which the games also need to
+  accept Start), with the GPU/GTE/DMA fixes from version 0.5.6 of the PlayStation core.
+- VRAM in the Pocket's PSRAM at full rate, so the GPU finishes every frame (this fixed polygons and HUD parts that dropped out).
+- The C76 sound CPU with its BIOS, interrupted on vertical blank as on the board.
+- A game list of 35 sets built from your own MAME romsets, with each game's required files listed for pupdate and Pocket Sync.
+
+Known limitations:
+
+- To change game, quit the core and open it again (there is no "Load game").
+- Game settings (the EEPROM) are not kept between launches yet.
+- A thin line can show at the top of the picture.
+- Not every regional version in `_alternatives` has been tried.
 
 ## Installing
 
 ### The core
 
-1. Get the core zip from this repository's [Releases](https://github.com/McNast13/NamcoSystem11-Pocket/releases) page (none yet;
-   until then, build it yourself as described under [Building](#building)).
-2. Unzip it onto the root of the Pocket's SD card. It adds `Cores/McNast13.NamcoSystem11/` and `Platforms/namco_system11.json`.
+1. Get `NamcoSystem11-pocket-core-<version>.zip` from this repository's
+   [Releases](https://github.com/McNast13/NamcoSystem11-Pocket/releases) page (or build it yourself, see [Building](#building)).
+2. Unzip it onto the root of the Pocket's SD card. It adds `Cores/McNast13.NamcoSystem11/`, `Platforms/namco_system11.json` (with
+   the platform banner), the game list in `Assets/namco_system11/McNast13.NamcoSystem11/` and an empty
+   `Assets/namco_system11/common/` with a README saying which files go there. No ROMs are included.
 3. The core appears in the Pocket's **openFPGA > Arcade Multi** menu as **Namco System 11**.
 
 ### BIOS and ROM files
@@ -30,20 +48,19 @@ romsets (for example MAME 2015) match only where those sets have not changed sin
   `Assets/namco_system11/common/<MAME set name>/`, so **pupdate** and **Pocket Sync** list them as the core's required files and show
   which are missing. The main version of each game (the MRAs at the top of the MiSTer core's `_Arcade` folder, first in each row
   below) is at the top of the list; the other versions are in an `_alternatives` subfolder (pupdate's "skip alternative assets"
-  setting skips it). Only Tekken (Asia, TE4/VER.C) and Tekken 2 Ver.B (US, TES3/VER.D), both alternatives, have been tested on a
-  Pocket so far.
+  setting skips it). The **Tested** column shows the games confirmed working on a Pocket.
 
-| Game | Current MAME sets |
-|---|---|
-| Tekken | `tekken` (TE2/VER.C), `tekkenac`, `tekkenb`, `tekkenjb` |
-| Tekken 2 | `tekken2` (TES2/VER.D), `tekken2ud`, `tekken2ub`, `tekken2b`, `tekken2a`, `tekken2ua`, `tekken2jb`, `tekken2jc` |
-| Soul Edge | `souledge` (Ver. II, SO4/VER.C), `souledgeuc`, `souledgea`, `souledgeua`, `souledgeja` |
-| Xevious 3D/G | `xevi3dg`, `xevi3dga`, `xevi3dgj` |
-| Dancing Eyes | `danceyes`, `danceyesu`, `danceyesj` |
-| Dunk Mania | `dunkmnia`, `dunkmniajc` |
-| Point Blank 2 / Gunbarl | `ptblank2a`, `ptblank2b`, `ptblank2c`, `ptblank2ua`, `gunbarla` |
-| Star Sweep | `starswep`, `starswepj` |
-| Pocket Racer, Prime Goal EX, Kosodate Quiz My Angel 3 | `pocketrc`, `primglex`, `myangel3` |
+| Game | Current MAME sets | Tested |
+|---|---|---|
+| Tekken | `tekken` (TE2/VER.C), `tekkenac`, `tekkenb`, `tekkenjb` | Yes |
+| Tekken 2 | `tekken2` (TES2/VER.D), `tekken2ud`, `tekken2ub`, `tekken2b`, `tekken2a`, `tekken2ua`, `tekken2jb`, `tekken2jc` | Yes |
+| Soul Edge | `souledge` (Ver. II, SO4/VER.C), `souledgeuc`, `souledgea`, `souledgeua`, `souledgeja` | Yes |
+| Xevious 3D/G | `xevi3dg`, `xevi3dga`, `xevi3dgj` | Yes |
+| Dancing Eyes | `danceyes`, `danceyesu`, `danceyesj` | Yes |
+| Dunk Mania | `dunkmnia`, `dunkmniajc` | Not yet |
+| Point Blank 2 / Gunbarl | `ptblank2a`, `ptblank2b`, `ptblank2c`, `ptblank2ua`, `gunbarla` | Not yet |
+| Star Sweep | `starswep`, `starswepj` | Not yet |
+| Pocket Racer, Prime Goal EX, Kosodate Quiz My Angel 3 | `pocketrc`, `primglex`, `myangel3` | Yes (all three) |
 
 A clone set (for example `tekkenac`) also reads its parent's zip (`tekken.zip`), as in MAME; a merged parent zip that contains the
 clone's files is enough.
@@ -99,7 +116,10 @@ Game settings (the EEPROM) start blank at every launch for now, so changes made 
 To build and package, use `tools/local_build.sh` (local Quartus in Docker, see [docs/LOCAL_BUILD.md](docs/LOCAL_BUILD.md)) or GitHub
 Actions (`pocket-shell.yml` with `project=s11full`). `tools/build_core_tree.py` assembles the source tree, Quartus compiles
 `pocket/project/s11full`, `tools/package_pocket.py` makes the SD-card tree, and
-`tools/make_games.py` turns your own MAME ROM zips into the game files and the game list (`tools/rom_packer.py` packs one MRA). No ROMs are included or distributed. Releases are built by `release.yml` when a `v*` tag is pushed.
+`tools/make_games.py` turns your own MAME ROM zips into the game files and the game list (`tools/rom_packer.py` packs one MRA). No ROMs are included or distributed. Releases are built by `release.yml` (push a `v*` tag, or run it by hand from the Actions tab with a tag name): it builds the game
+core at the fitter seed of the build tested on a Pocket (seed 22 since v0.1.1), stamps the version into `core.json` and publishes
+the release with the SD-card zip. Another seed is the same design but an untested fit, so a new seed is only released after it has
+been tested on a Pocket.
 
 ## Use of AI
 
