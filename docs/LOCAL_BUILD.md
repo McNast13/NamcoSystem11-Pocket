@@ -32,4 +32,4 @@ Outputs: reports and `paths.*` in `pocket/project/output_files/`, SD-card tree i
 A seed is not good or bad by itself: every design change gives each seed a completely different placement. Seed 99 was the fixed
 seed for bring-up A/B builds (so two builds differed only by the change under test), not because it beat the others. For a release
 candidate, build a few seeds, compare their timing (`s11full.sta.summary`, above all the clk2x `general[1]` setup and the hold
-checks), test the chosen one on a Pocket, and release exactly that bitstream (byte-compare it). v0.1.1 is seed 22.
+checks), test the chosen one on a Pocket, and release exactly that bitstream (byte-compare it). The fitter's placement depends on the processor count, so local builds (`QUARTUS_CPUS`, default 2) and `release.yml` both use 2: with 4, seed 22 gave another fit (17,860 ALMs, -1.6 ns clk2x). v0.1.1 is seed 22.

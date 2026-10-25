@@ -33,9 +33,12 @@ env:
   # (s11_bootbits; PK_DBG2 tied off by s11_dbg2_zero), outputs on the rising edge, no diagnostic screen (S11_NO_DIAG). Seed 22 is the seed tested on the device (v0.1.1).
   S11_SKIP: s11_bootbits
   S11_PROBES: s11_dbg2_zero
+  # The fitter's placement depends on the processor count: 2, as tools/local_build.sh, so this reproduces the tested local build
+  # (the runner's 4 gave seed 22 another fit, 17,860 ALMs and -1.6 ns, in the first v0.1.3 run).
   QSF_MACROS: |-
     set_global_assignment -name VERILOG_MACRO "S11_POSEDGE_OUT=1"
     set_global_assignment -name VERILOG_MACRO "S11_NO_DIAG=1"
+    set_global_assignment -name NUM_PARALLEL_PROCESSORS 2
 jobs:
   build:
     runs-on: ubuntu-latest
