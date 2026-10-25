@@ -17,6 +17,8 @@ QUARTUS_CPUS=1 tools/local_build.sh s11full lowmem   # if the fitter runs out of
 S11_SKIP=cpu_execute_share tools/local_build.sh s11full ab   # A/B: leave a variant out
 S11_PROBES=s11_ramprobe tools/local_build.sh s11full probe  # probe variants applied after pocket_emu.apply
 ```
+Game/release builds: `S11_SKIP=s11_bootbits S11_PROBES=s11_dbg2_zero` and `QSF_EXTRA` with the seed, `VERILOG_MACRO "S11_POSEDGE_OUT=1"` and `VERILOG_MACRO "S11_NO_DIAG=1"` (no diagnostic screen: 17,825 ALMs at seed 22, 360 fewer), as in `release.yml`.
+
 Diagnostic builds for the Pocket need `S11_NO_MDEC=1` and `QSF_EXTRA` with `SEED 99`, `VERILOG_MACRO "S11_POSEDGE_OUT=1"` and `VERILOG_MACRO "S11_FORCE_DIAG=1"` (see docs/SHELL.md).
 Outputs: reports and `paths.*` in `pocket/project/output_files/`, SD-card tree in `pocket/package-<label>` (copy to the Pocket as for the Actions package). The tracked `.qsf` is restored after the run.
 

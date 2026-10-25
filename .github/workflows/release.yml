@@ -30,10 +30,12 @@ concurrency:
 env:
   # Release recipe = the game build tested on the device (game22, docs/SHELL.md 2026-10-24): every default variant (real MDEC,
   # full-rate PSRAM VRAM, the PS 0.5.6 GPU/GTE/DMA patches, the GPU timing variants), without the bring-up probe export
-  # (s11_bootbits; PK_DBG2 tied off by s11_dbg2_zero), outputs on the rising edge. Seed 22 is the seed tested on the device (v0.1.1).
+  # (s11_bootbits; PK_DBG2 tied off by s11_dbg2_zero), outputs on the rising edge, no diagnostic screen (S11_NO_DIAG). Seed 22 is the seed tested on the device (v0.1.1).
   S11_SKIP: s11_bootbits
   S11_PROBES: s11_dbg2_zero
-  QSF_MACROS: 'set_global_assignment -name VERILOG_MACRO "S11_POSEDGE_OUT=1"'
+  QSF_MACROS: |-
+    set_global_assignment -name VERILOG_MACRO "S11_POSEDGE_OUT=1"
+    set_global_assignment -name VERILOG_MACRO "S11_NO_DIAG=1"
 jobs:
   build:
     runs-on: ubuntu-latest

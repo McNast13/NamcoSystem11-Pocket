@@ -5,8 +5,9 @@ Port of [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) (itself 
 
 **Status:** experimental. Latest release: [v0.1.2](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
 Tested as working on a real Pocket: Tekken, Tekken 2, Soul Edge, Prime Goal EX, Pocket Racer, Kosodate Quiz My Angel 3, Dancing
-Eyes and Xevious 3D/G. Dunk Mania, Point Blank 2 and Star Sweep have not been tested yet. The design uses about 98% of the FPGA
-(18,089 / 18,480 ALMs). See [docs/SHELL.md](docs/SHELL.md) for the architecture and the full bring-up log, and
+Eyes and Xevious 3D/G. Dunk Mania, Point Blank 2 and Star Sweep have not been tested yet. The design uses about 96% of the FPGA
+(17,825 / 18,480 ALMs): game builds leave out the bring-up diagnostic screen and its debug signals (`S11_NO_DIAG`), which freed
+360 ALMs and removes the "Diagnostic screen" entry from the core's settings (from v0.1.3). See [docs/SHELL.md](docs/SHELL.md) for the architecture and the full bring-up log, and
 [docs/BASELINE.md](docs/BASELINE.md) for the measurements.
 
 What the core has so far:
@@ -142,7 +143,7 @@ To build and package, use `tools/local_build.sh` (local Quartus in Docker, see [
 Actions (`pocket-shell.yml` with `project=s11full`). `tools/build_core_tree.py` assembles the source tree, Quartus compiles
 `pocket/project/s11full`, `tools/package_pocket.py` makes the SD-card tree, and
 `tools/make_games.py` turns your own MAME ROM zips into the game files and the game list (`tools/rom_packer.py` packs one MRA). No ROMs are included or distributed. Releases are built by `release.yml` (push a `v*` tag, or run it by hand from the Actions tab with a tag name): it builds the game
-core at the fitter seed of the build tested on a Pocket (seed 22 since v0.1.1), stamps the version into `core.json` and publishes
+core at the fitter seed of the build tested on a Pocket (seed 22 since v0.1.1), builds without the diagnostic screen (`S11_NO_DIAG`), stamps the version into `core.json` and publishes
 the release with the SD-card zip. Another seed is the same design but an untested fit, so a new seed is only released after it has
 been tested on a Pocket.
 

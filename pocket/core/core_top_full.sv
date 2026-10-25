@@ -384,7 +384,7 @@ module core_top (
     always @(posedge clk_74a) ee_shadow_q <= ee_shadow[bridge_addr[11:2]];
 
     // ---- Core settings (interact.json): DIP1 Test, DIP2 Freeze, held Service button ----
-    reg [3:0] settings74 = 4'b1000;                      // [3] = diagnostic screen (default on during bring-up)
+    reg [3:0] settings74 = 4'b0000;                      // [3] = diagnostic screen (no menu entry: S11_FORCE_DIAG shows it)
     always @(posedge clk_74a) if (bridge_wr) begin
         if (bridge_addr == 32'h50000000) settings74[0] <= bridge_wr_data[0];
         if (bridge_addr == 32'h50000004) settings74[1] <= bridge_wr_data[0];
@@ -495,6 +495,11 @@ module core_top (
     );
 `endif
 
+`ifdef S11_NO_DIAG
+    // game/release builds: no diagnostic screen, so its status flags, PC samples, the core's debug buses and the test tone are left out
+    wire diag_sel = 1'b0, diag_auto = 1'b0;
+    wire dg_ce = 1'b0, dg_hs = 1'b0, dg_vs = 1'b0, dg_hbl = 1'b1, dg_vbl = 1'b1; wire [23:0] dg_rgb = 24'd0;
+`else
     // ---- bring-up diagnostics: sticky status flags + the live debug bus drawn on a screen of their own ----
     reg [24:0] blink_cnt = 0;
     reg dl_seen = 0, wr_seen = 0, ce_seen = 0, hs_seen = 0, vs_seen = 0, de_seen = 0, busy_seen = 0, rdy_seen = 0, rd_seen = 0, we_seen = 0, aud_seen = 0;
@@ -537,6 +542,7 @@ module core_top (
 `endif
     wire dg_ce, dg_hs, dg_vs, dg_hbl, dg_vbl; wire [23:0] dg_rgb;
     s11_diag diag (.clk(clk_vid), .bus(diag_bus), .extra({pc_smp_a, emu_dbg2[255:224], emu_dbg2[191:160], emu_dbg2[223:192], emu_dbg2[159:128], emu_dbg2[127:96]}), .ce(dg_ce), .hsync(dg_hs), .vsync(dg_vs), .hblank(dg_hbl), .vblank(dg_vbl), .rgb(dg_rgb));
+`endif
 
     // ---- video: raw PSX video (or the diagnostic screen) -> APF scaler protocol (as in the PS Pocket core) ----
     wire apf_hs, apf_vs, apf_de, apf_skip;
@@ -565,7 +571,9 @@ module core_top (
     // ---- audio (in diagnostic mode a 1 kHz square tone proves the clocks, the audio PLL and the I2S path independently of the core) ----
     reg [1:0] alive_s = 2'b00; always @(posedge clk1x) alive_s <= {alive_s[0], ~diag_auto};
     wire vid_alive_1x = alive_s[1];
-`ifdef S11_FORCE_DIAG
+`ifdef S11_NO_DIAG
+    wire diag_vid_1x = 1'b0;
+`elsif S11_FORCE_DIAG
     wire diag_vid_1x = 1'b1;
 `else
     wire diag_vid_1x = settings[3] | ~vid_alive_1x;
