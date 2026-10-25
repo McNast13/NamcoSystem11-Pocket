@@ -129,8 +129,8 @@ jobs:
             echo "Beta of the Namco System 11 arcade core for the Analogue Pocket (port of SYSTEM11_MiSTer, built on the openFPGA PlayStation core)."
             echo
             echo "**Install:** unzip onto the root of the SD card. The core appears under openFPGA > Arcade Multi > Namco System 11."
-            echo "ROMs and the C76 BIOS are not included: build the game files from your own current-MAME romsets with"
-            echo "tools/make_games.py, and put c76.bin (from namcoc76.zip) in Assets/namco_system11/common/ (see the README)."
+            echo "ROMs and the C76 BIOS are not included: build the game files from your own current-MAME romsets with the"
+            echo "[Pocket Sync / pupdate plugin](https://github.com/McNast13/NamcoSystem11-Pocket-Plugin) or tools/make_games.py (see the README)."
             echo "pupdate and Pocket Sync list each game's required files."
             echo
             echo "**Tested on a Pocket:** Tekken, Tekken 2, Soul Edge, Xevious 3D/G, Dancing Eyes, Pocket Racer, Prime Goal EX"

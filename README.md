@@ -15,7 +15,8 @@ What the core has so far:
   accept Start), with the GPU/GTE/DMA fixes from version 0.5.6 of the PlayStation core.
 - VRAM in the Pocket's PSRAM at full rate, so the GPU finishes every frame (this fixed polygons and HUD parts that dropped out).
 - The C76 sound CPU with its BIOS, interrupted on vertical blank as on the board.
-- A game list of 35 sets built from your own MAME romsets, with each game's required files listed for pupdate and Pocket Sync.
+- A game list of 35 sets built from your own MAME romsets, with each game's required files listed for pupdate and Pocket Sync,
+  and a [Pocket Sync / pupdate plugin](https://github.com/McNast13/NamcoSystem11-Pocket-Plugin) that installs them from your zips.
 
 Known limitations:
 
@@ -87,8 +88,32 @@ The other versions in `_alternatives` are listed in their MRAs (`references/SYST
 
 ### Installing games
 
-The Pocket cannot read MAME zips, so the game files are built once on a computer (Python 3 needed) with `tools/make_games.py`, which
-follows each set's MRA and checks every file's CRC:
+The Pocket cannot read MAME zips, so the game files are built once on a computer, either with the Pocket Sync / pupdate plugin
+(no Python or clone needed) or with `tools/make_games.py`. Both follow each set's MRA, check every file's CRC and write the same
+files.
+
+#### With Pocket Sync or pupdate (the plugin)
+
+The [Namco System 11 games plugin](https://github.com/McNast13/NamcoSystem11-Pocket-Plugin) installs the games from your zips
+inside Pocket Sync or pupdate:
+
+1. Install the core.
+2. Copy your romset zips and `namcoc76.zip` into `Assets/namco_system11/common/` on the SD card (a folder of zips there works too;
+   subfolders are searched up to four levels down).
+3. In Pocket Sync or pupdate, add a plugin from `https://github.com/McNast13/NamcoSystem11-Pocket-Plugin`, put the SD card in and
+   open *Namco System 11 games*.
+4. It lists every game your zips have files for, as **Ready** or **Can't be installed** (with the missing files or wrong CRCs).
+   Choose *Install all* (or *Install the main versions only*). It writes `common/c76.bin`, one `common/<set>/` folder per game and
+   each game's instance file with the files' MD5s. Your zips are left where they are; once the games are installed you can
+   delete them.
+5. On the Pocket, open **Namco System 11** and pick the game from the list.
+
+The plugin finds files by their CRC, so renamed zips, merged sets, zips from older MAME versions (where a file moved to another
+set's zip or was renamed) and zips inside zips all work.
+
+#### With `tools/make_games.py`
+
+Python 3 needed:
 
 1. Clone this repository with the MiSTer core submodule (it holds the MRA files):
    ```

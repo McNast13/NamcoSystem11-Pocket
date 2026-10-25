@@ -22,7 +22,9 @@ ASSETS_README = """Namco System 11 game files go in this folder. None are includ
 - c76.bin: the C76 sound CPU BIOS, shared by every game. Copy it out of namcoc76.zip into this folder
   (CRC 399faac7, md5 8ca155e5ad03571e0930d8d361749b03).
 - One folder per game, named after its MAME set (tekken2/, souledge/, xevi3dg/, ...), holding rom_0.bin ... rom_7.bin.
-  Build them with tools/make_games.py from https://github.com/McNast13/NamcoSystem11-Pocket:
+  Easiest: copy your zips and namcoc76.zip into this folder and run the Namco System 11 games plugin in Pocket Sync or
+  pupdate (https://github.com/McNast13/NamcoSystem11-Pocket-Plugin); it writes c76.bin and every game folder.
+  Or build them with tools/make_games.py from https://github.com/McNast13/NamcoSystem11-Pocket:
 
       python3 tools/make_games.py --roms <folder with your zips and namcoc76.zip> --sd <SD card root>
 
