@@ -3,7 +3,7 @@
 Port of [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) (itself derived from
 [PSX_MiSTer](https://github.com/MiSTer-devel/PSX_MiSTer)) to the Analogue Pocket.
 
-**Status:** experimental. Latest release: [v0.1.2](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
+**Status:** experimental. Latest release: [v0.1.3](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
 Tested as working on a real Pocket: Tekken, Tekken 2, Soul Edge, Prime Goal EX, Pocket Racer, Kosodate Quiz My Angel 3, Dancing
 Eyes and Xevious 3D/G. Dunk Mania, Point Blank 2 and Star Sweep have not been tested yet. The design uses about 96% of the FPGA
 (17,825 / 18,480 ALMs): game builds leave out the bring-up diagnostic screen and its debug signals (`S11_NO_DIAG`), which freed
