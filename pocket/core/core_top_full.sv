@@ -352,6 +352,12 @@ module core_top (
     function [15:0] map_stick(input [15:0] s);     // unsigned 0..255 centred on 128 -> signed -128..127, {Y, X}
         map_stick = {s[15:8] ^ 8'h80, s[7:0] ^ 8'h80};
     endfunction
+    // Sticks are believed only for an analog pad (APF type 3) or a type 2 pad whose stick word is neither 0 nor all ones, as the PS
+    // core's psx_pocket_analog: the handheld and stickless pads send 0 or all ones, which read as full lock and hid the d-pad (Pocket
+    // Racer's d-pad steering only works while the stick is centred).
+    function [15:0] stick(input [31:0] k, input [31:0] j, input hi);
+        stick = (k[31:28] == 4'h3 || (k[31:28] == 4'h2 && j != 32'h0 && j != 32'hFFFFFFFF)) ? map_stick(hi ? j[31:16] : j[15:0]) : 16'h0;
+    endfunction
 
     // ---- EEPROM save-back: a shadow copy readable from the bridge ----
     // zn1_io's EEPROM RAM has one port that the MIPS also uses, so the contents are copied out (1024 words, ~4k clk1x) after
@@ -463,10 +469,10 @@ module core_top (
         .PK_IOCTL_DL(ioctl_dl), .PK_IOCTL_WR(ioctl_wr), .PK_IOCTL_INDEX(ioctl_index), .PK_IOCTL_ADDR(ioctl_addr),
         .PK_IOCTL_DOUT(ioctl_dout_emu), .PK_IOCTL_WAIT(ioctl_wait),
         .PK_JOY0(map_joy(k1_s) | joy_svc), .PK_JOY1(map_joy(k2_s)), .PK_JOY2(map_joy(k3_s)), .PK_JOY3(map_joy(k4_s)),
-        .PK_ANALOG_L0(map_stick(j1_s[15:0])),  .PK_ANALOG_L1(map_stick(j2_s[15:0])),
-        .PK_ANALOG_L2(map_stick(j3_s[15:0])),  .PK_ANALOG_L3(map_stick(j4_s[15:0])),
-        .PK_ANALOG_R0(map_stick(j1_s[31:16])), .PK_ANALOG_R1(map_stick(j2_s[31:16])),
-        .PK_ANALOG_R2(map_stick(j3_s[31:16])), .PK_ANALOG_R3(map_stick(j4_s[31:16])),
+        .PK_ANALOG_L0(stick(k1_s, j1_s, 1'b0)),  .PK_ANALOG_L1(stick(k2_s, j2_s, 1'b0)),
+        .PK_ANALOG_L2(stick(k3_s, j3_s, 1'b0)),  .PK_ANALOG_L3(stick(k4_s, j4_s, 1'b0)),
+        .PK_ANALOG_R0(stick(k1_s, j1_s, 1'b1)), .PK_ANALOG_R1(stick(k2_s, j2_s, 1'b1)),
+        .PK_ANALOG_R2(stick(k3_s, j3_s, 1'b1)), .PK_ANALOG_R3(stick(k4_s, j4_s, 1'b1)),
         .PK_STATUS({30'd0, settings[1], settings[0], 96'd0}),
         .PK_VID_CE(vid_ce), .PK_VID_HS(vid_hs), .PK_VID_VS(vid_vs), .PK_VID_HBL(vid_hbl), .PK_VID_VBL(vid_vbl),
         .PK_VID_ILACE(vid_ilace), .PK_VID_R(vid_r), .PK_VID_G(vid_g), .PK_VID_B(vid_b),
@@ -548,7 +554,7 @@ module core_top (
     wire apf_hs, apf_vs, apf_de, apf_skip;
     wire [23:0] apf_rgb;
     psx_apf_video #(.STEADY_INTERLACE(0), .SLOT_SELECT(1), .PAD_LINES(1), .CENTER_LINES(1), .VS_ON_HS(1),
-                    .CROP_LINES(1), .BLANK_TOP(1), .LEAD_LINE(1), .MID_W(384)) apf_video (
+                    .CROP_LINES(1), .BLANK_TOP(1), .LEAD_LINE(0), .MID_W(384), .EVEN_LINES(1)) apf_video (
         .clk(clk_vid), .ce(diag_sel ? dg_ce : vid_ce),
         .hsync(diag_sel ? dg_hs : vid_hs), .vsync(diag_sel ? dg_vs : vid_vs),
         .hblank(diag_sel ? dg_hbl : vid_hbl), .vblank(diag_sel ? dg_vbl : vid_vbl), .interlace(diag_sel ? 1'b0 : vid_ilace),

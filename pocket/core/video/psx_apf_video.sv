@@ -86,6 +86,17 @@
 // sends 384x240 lines (probe photo, 2026-10-17), which went padded into the
 // 512 slot, and the trailing padding was cut at HS, leaving stale pixels on
 // the right. 384 holds both 368 and 384 lines.
+// EVEN_LINES (PS 0.5.6, bhendo's fix for its issue #5): every
+// frame sends an even number of DE lines. After vblank starts, a black pad line
+// (the lead line again: previous line's start, slot and width) goes out at the
+// next line when the DE lines since VS are odd. With an odd count (the lead
+// line and 240) the APF scaler leaves the right part of a row above the picture
+// unwritten from power-on: a white line top right on the Pocket's screen, not
+// on the Dock (photos, 2026-10-27). A pad still pending at VS is dropped.
+// EVEN_LINES does not need LEAD_LINE: as in PS 0.5.6 (LEAD_LINE 2, progressive
+// frames), VS_ON_HS keeps the first line, and the lead line itself was the
+// partly written top row: the left 128 pixels of Soul Edge's 640-wide frames
+// with an even count (photos, 2026-10-27).
 // VIDEO_PROBE (diagnostic builds only) marks what the core writes: the first
 // active line of a frame shows the previous frame's active line count as 10
 // blocks of 16 pixels (MSB first, white 1, blue 0) on green, the second line
@@ -99,7 +110,7 @@ module psx_apf_video #(parameter integer STEADY_INTERLACE=1, parameter integer S
     parameter integer PAL288=0,
     parameter integer CENTER_LINES=0, parameter integer VIDEO_TEST=0, parameter integer LEAD_LINE=0, parameter integer SLOT6_368=0,
     parameter integer VS_ON_HS=0, parameter integer CROP_LINES=0, parameter integer BLANK_TOP=0,
-    parameter integer MID_W=368) (
+    parameter integer MID_W=368, parameter integer EVEN_LINES=0) (
     input wire clk, ce,
     input wire hsync, vsync, hblank, vblank, interlace, blank, weave,
     input wire field_swap,            // run-time flip of the APF field bit (menu setting)
@@ -108,7 +119,7 @@ module psx_apf_video #(parameter integer STEADY_INTERLACE=1, parameter integer S
     output reg hs=0, vs=0, de=0, skip=0,
     output reg [23:0] rgb=0
 );
-    localparam integer LEAD_LOGIC=VIDEO_TEST!=0 || LEAD_LINE!=0;
+    localparam integer LEAD_LOGIC=VIDEO_TEST!=0 || LEAD_LINE!=0 || EVEN_LINES!=0;
     wire [1:0] vtest=LEAD_LINE!=0 ? 2'b01 : video_test;
     reg hs_d=0, vs_d=0, vb_d=1'b1, hold=0;
     wire vs_main=VS_AT_VBLANK!=0 ? vblank && !vb_d : vsync && !vs_d;
@@ -166,6 +177,7 @@ module psx_apf_video #(parameter integer STEADY_INTERLACE=1, parameter integer S
     wire pad_now=pad_start || pad_cont;
     reg lead_pend=0, lead_arm=0, lead_on=0, lead_line=0;
     reg [9:0] lead_cnt=0;
+    reg pad_pend=0, de_odd=0;   // EVEN_LINES: de_odd = odd DE lines since VS
     wire lead_start=LEAD_LOGIC && lead_arm && !active && !hsync && ce && hs_cnt>=start_prev;
     wire lead_now=(lead_start || lead_on) && !active;
     wire in_line=active || pad_now || pre_now || lead_now;
@@ -216,6 +228,12 @@ module psx_apf_video #(parameter integer STEADY_INTERLACE=1, parameter integer S
             if (LEAD_LOGIC) begin
                 if (vs_edge && vtest[0]) lead_pend<=1;
                 if (lead_pend && !hsync && hs_d && !active) begin lead_arm<=1; lead_pend<=0; end
+                if (EVEN_LINES!=0) begin
+                    if (vblank && !vb_d) pad_pend<=1;
+                    if (pad_pend && !hsync && hs_d && !active) begin lead_arm<=de_odd; pad_pend<=0; end
+                    if (vs_edge) pad_pend<=0;
+                    de_odd<=(vs_edge ? 1'b0 : de_odd)^(in_line && !line_d);
+                end
                 if (lead_start) begin lead_arm<=0; lead_on<=1; lead_line<=1; end
                 if (lead_now && ce) begin   // CE-paced, as test8's Video test D
                     lead_cnt<=lead_cnt+1'b1;
