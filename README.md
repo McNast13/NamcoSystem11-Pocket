@@ -3,10 +3,10 @@
 Port of [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) (itself derived from
 [PSX_MiSTer](https://github.com/MiSTer-devel/PSX_MiSTer)) to the Analogue Pocket.
 
-**Status:** experimental. Latest release: [v0.1.3](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
+**Status:** experimental. Latest release: [v0.1.4](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
 Tested as working on a real Pocket: Tekken, Tekken 2, Soul Edge, Prime Goal EX, Pocket Racer, Kosodate Quiz My Angel 3, Dancing
 Eyes and Xevious 3D/G. Dunk Mania, Point Blank 2 and Star Sweep have not been tested yet. The design uses about 96% of the FPGA
-(17,825 / 18,480 ALMs): game builds leave out the bring-up diagnostic screen and its debug signals (`S11_NO_DIAG`), which freed
+(17,832 / 18,480 ALMs): game builds leave out the bring-up diagnostic screen and its debug signals (`S11_NO_DIAG`), which freed
 360 ALMs and removes the "Diagnostic screen" entry from the core's settings (from v0.1.3). See [docs/SHELL.md](docs/SHELL.md) for the architecture and the full bring-up log, and
 [docs/BASELINE.md](docs/BASELINE.md) for the measurements.
 
@@ -16,6 +16,10 @@ What the core has so far:
   accept Start), with the GPU/GTE/DMA fixes from version 0.5.6 of the PlayStation core.
 - VRAM in the Pocket's PSRAM at full rate, so the GPU finishes every frame (this fixed polygons and HUD parts that dropped out).
 - The C76 sound CPU with its BIOS, interrupted on vertical blank as on the board.
+- Pictures sent to the Pocket's scaler as the PlayStation core 0.5.6 does: no extra lead line, and an even number of lines in
+  every frame, so no line shows at the top of the picture on the Pocket's screen (from v0.1.4).
+- Controls from the Pocket, the Dock's controllers and their analog sticks. Pocket Racer steers with left/right on the d-pad (a
+  virtual wheel that turns while held and re-centres when let go) or with an analog stick on the Dock.
 - A game list of 35 sets built from your own MAME romsets, with each game's required files listed for pupdate and Pocket Sync,
   and a [Pocket Sync / pupdate plugin](https://github.com/McNast13/NamcoSystem11-Pocket-Plugin) that installs them from your zips.
 
@@ -23,7 +27,6 @@ Known limitations:
 
 - To change game, quit the core and open it again (there is no "Load game").
 - Game settings (the EEPROM) are not kept between launches yet.
-- A thin line can show at the top of the picture.
 - Not every regional version in `_alternatives` has been tried.
 
 ## Installing
