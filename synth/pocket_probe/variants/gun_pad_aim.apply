@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+"""Light-gun aiming from the pad for Point Blank 2 / Gunbarl (replaces drop_guns, which pinned both guns at screen centre).
+
+The Pocket has no light gun and no mouse. The System 11 GUN I/F only presents absolute X/Y counters, so each player's aim is a
+virtual pointer moved like a trackball: the left stick (proportional) or the d-pad drives its velocity, ~1.03 kHz, and it stays
+put on release. P2 already worked this way in SYSTEM11.sv; P1's mouse path becomes the same thing on pad 1.
+  * speed: status[99:98] (Pocket setting "Gun aim speed") 0 = Normal (d-pad crosses the screen in ~0.7 s at full speed),
+    1 = Slow (~1.4 s), 2 = Fast (~0.35 s). Y moves 4x slower in virtual units (the virtual screen is 1024 x 256), so both axes
+    cross in the same time. The d-pad accelerates: 1/3 speed for the first 0.25 s of a hold (fine aim), ramping to full speed
+    at 0.5 s. The stick is proportional and does not ramp.
+  * trigger: any face button (MAME's ptblank2 reads only PLAYER1/2 0x10 and Start; the d-pad and the other buttons are unused).
+  * crosshair: always on for a gun game (you cannot aim a pad at what you cannot see), drawn on the raw video the Pocket scaler
+    takes (pk_xh_r/g/b, wired by pocket_emu.apply) instead of the MiSTer gamma chain. MAME's sight (src/emu/crsshair.cpp
+    crosshair_raw_top, 0.06 x 0.08 of the screen) scaled to 19 x 19 pixels and made symmetric, blended at 75% like MAME:
+    P1 blue (40,40,FF), P2 red (FF,40,40) once P2 has moved.
+"""
+import re, sys
+from pathlib import Path
+
+p = Path(sys.argv[1]).resolve() / "SYSTEM11.sv"
+t = p.read_text()
+
+def sub(old, new):
+    global t
+    assert t.count(old) == 1, old
+    t = t.replace(old, new)
+
+# P1 pointer: pad 1 stick / d-pad velocity instead of PS/2 mouse packets
+m = re.search(r"reg                mouse_ev_d = 1'b0;\n.*?\n(?=wire  \[9:0\] gun_px = px_f\[13:4\];)", t, flags=re.S)
+assert m, "P1 mouse block"
+t = t[:m.start()] + """// Pocket (gun_pad_aim.apply): P1 aims with pad 1's left stick or d-pad, as P2 below. joy[3]=UP [2]=DOWN [1]=LEFT [0]=RIGHT.
+wire signed [7:0] p1_sx_raw = joystick_analog_l0[7:0];
+wire signed [7:0] p1_sy_raw = joystick_analog_l0[15:8];
+wire signed [7:0] p1_ax  = (p1_sx_raw > 8'sd16 || p1_sx_raw < -8'sd16) ? p1_sx_raw : 8'sd0;
+wire signed [7:0] p1_ay  = (p1_sy_raw > 8'sd16 || p1_sy_raw < -8'sd16) ? p1_sy_raw : 8'sd0;
+// D-pad acceleration: 32 (1/3 speed) for the first 256 ticks (~0.25 s) of a hold, then +1 per 4 ticks up to 96 at ~0.5 s.
+reg         [9:0] p1_hold = 10'd0;
+wire signed [7:0] p1_dpv = p1_hold[9] ? 8'sd96 : p1_hold[8] ? 8'sd32 + $signed({2'b0, p1_hold[7:2]}) : 8'sd32;
+wire signed [7:0] p1_sx  = (p1_ax != 8'sd0) ? p1_ax : joy[0] ? p1_dpv : joy[1] ? -p1_dpv : 8'sd0;
+wire signed [7:0] p1_sy  = (p1_ay != 8'sd0) ? p1_ay : joy[2] ? p1_dpv : joy[3] ? -p1_dpv : 8'sd0;
+// status[99:98]: 0 Normal, 1 Slow, 2 Fast. Y shifts 2 more: the virtual screen is 1024 x 256 but displayed 4:3.
+wire        [2:0] gun_rsh = (status[99:98] == 2'd1) ? 3'd3 : (status[99:98] == 2'd2) ? 3'd1 : 3'd2;
+wire        [2:0] gun_rsy = gun_rsh + 3'd2;
+wire signed [15:0] dx_f   = $signed({{8{p1_sx[7]}}, p1_sx}) >>> gun_rsh;
+wire signed [15:0] dy_f   = $signed({{8{p1_sy[7]}}, p1_sy}) >>> gun_rsy;
+wire signed [16:0] nx_f   = $signed({3'b0, px_f}) + dx_f;
+wire signed [16:0] ny_f   = $signed({5'b0, py_f}) + dy_f;
+reg         [14:0] p1_tick_cnt = 15'd0;          // 33.87 MHz / 32768 => ~1.03 kHz update
+always @(posedge clk_1x) begin
+   p1_tick_cnt <= p1_tick_cnt + 15'd1;
+   if (p1_tick_cnt == 15'd0) begin
+      px_f <= (nx_f < 0) ? 14'd0 : (nx_f > $signed({3'b0, PXMAX_F})) ? PXMAX_F : nx_f[13:0];
+      py_f <= (ny_f < 0) ? 12'd0 : (ny_f > $signed({5'b0, PYMAX_F})) ? PYMAX_F : ny_f[11:0];
+      if (~|joy[3:0]) p1_hold <= 10'd0;
+      else if (~p1_hold[9]) p1_hold <= p1_hold + 10'd1;
+   end
+end
+""" + t[m.end():]
+
+# P2: same speeds and d-pad acceleration as P1
+sub("wire signed [7:0] p2_dpx = joy2[0] ? 8'sd96 : joy2[1] ? -8'sd96 : 8'sd0;\n"
+    "wire signed [7:0] p2_dpy = joy2[2] ? 8'sd96 : joy2[3] ? -8'sd96 : 8'sd0;",
+    "reg         [9:0] p2_hold = 10'd0;\n"
+    "wire signed [7:0] p2_dpv = p2_hold[9] ? 8'sd96 : p2_hold[8] ? 8'sd32 + $signed({2'b0, p2_hold[7:2]}) : 8'sd32;\n"
+    "wire signed [7:0] p2_dpx = joy2[0] ? p2_dpv : joy2[1] ? -p2_dpv : 8'sd0;\n"
+    "wire signed [7:0] p2_dpy = joy2[2] ? p2_dpv : joy2[3] ? -p2_dpv : 8'sd0;")
+sub("      p2y_f <= (p2ny_f < 0) ? 12'd0 : (p2ny_f > $signed({5'b0, PYMAX_F})) ? PYMAX_F : p2ny_f[11:0];\n",
+    "      p2y_f <= (p2ny_f < 0) ? 12'd0 : (p2ny_f > $signed({5'b0, PYMAX_F})) ? PYMAX_F : p2ny_f[11:0];\n"
+    "      if (~|joy2[3:0]) p2_hold <= 10'd0;\n"
+    "      else if (~p2_hold[9]) p2_hold <= p2_hold + 10'd1;\n")
+sub("wire signed [15:0] p2_dx = $signed({{8{p2_sx[7]}}, p2_sx}) >>> p2_rsh;",
+    "wire signed [15:0] p2_dx = $signed({{8{p2_sx[7]}}, p2_sx}) >>> gun_rsh;")
+sub("wire signed [15:0] p2_dy = $signed({{8{p2_sy[7]}}, p2_sy}) >>> p2_rsh;",
+    "wire signed [15:0] p2_dy = $signed({{8{p2_sy[7]}}, p2_sy}) >>> gun_rsy;")
+
+# trigger: any face button (Button1 is already wired; add Buttons 2-4)
+sub("wire gun_trigger = mouse[0];", "wire gun_trigger = joy[5] | joy[6] | joy[7];")
+sub("   .in_player2(~{joy2[10], joy2[6], joy2[5], joy2[4],\n",
+    "   .in_player2(~{joy2[10], joy2[6], joy2[5], (joy2[4] | (zn_gun_game & (joy2[5] | joy2[6] | joy2[7]))),\n")
+
+# crosshair: raw video (the Pocket's scaler input), always on for gun games
+blk = re.search(r"reg  \[11:0\] xh_hcnt = 12'd0;.*?assign VGA_B    = [^\n]*\n", t, flags=re.S)
+assert blk, "crosshair block"
+b = blk.group(0)
+b = b.replace("video_gamma.hb", "hbl").replace("video_gamma.vb", "vbl")
+assert b.count("status[100] & ") == 2
+b = b.replace("status[100] & ", "")
+assert b.count("Drawn GREEN to distinguish it from P1's white.") == 1
+b = b.replace("Drawn GREEN to distinguish it from P1's white.", "Drawn RED (MAME's P2 colour); P1 is blue.")
+# MAME's sight, 19 x 19, centred on the aim point (row 0 = top, bit 18 = left column)
+XH_ROM = (
+    "function [18:0] xh_row(input [4:0] y);\n"
+    "   case (y)\n"
+    "      5'd0 : xh_row = 19'b0110000000000000110;\n      5'd1 : xh_row = 19'b1110001111111000111;\n      5'd2 : xh_row = 19'b1111011111111101111;\n      5'd3 : xh_row = 19'b0011111000001111100;\n      5'd4 : xh_row = 19'b0001110000000111000;\n      5'd5 : xh_row = 19'b0011111000001111100;\n      5'd6 : xh_row = 19'b0011011000001101100;\n      5'd7 : xh_row = 19'b0110000100010000110;\n      5'd8 : xh_row = 19'b0110000010100000110;\n      5'd9 : xh_row = 19'b0110000001000000110;\n      5'd10: xh_row = 19'b0110000010100000110;\n      5'd11: xh_row = 19'b0110000100010000110;\n      5'd12: xh_row = 19'b0011011000001101100;\n      5'd13: xh_row = 19'b0011111000001111100;\n      5'd14: xh_row = 19'b0001110000000111000;\n      5'd15: xh_row = 19'b0011111000001111100;\n      5'd16: xh_row = 19'b1111011111111101111;\n      5'd17: xh_row = 19'b1110001111111000111;\n      5'd18: xh_row = 19'b0110000000000000110;\n"
+    "      default: xh_row = 19'd0;\n"
+    "   endcase\n"
+    "endfunction\n")
+for n, (cx, cy, gate) in (("", ("xh_cx", "xh_cy", "zn_gun_game")), ("2", ("xh2_cx", "xh2_cy", "zn_gun_game & p2_gun_active"))):
+    pat = re.compile(r"wire        xhair%s = .*?\(xh%s_dy <= 12'd6\)\)\);[^\n]*\n" % (n, n), flags=re.S)
+    assert len(pat.findall(b)) == 1, "xhair" + n
+    b = pat.sub(lambda _: (XH_ROM if n == "" else "") +
+        f"wire [11:0] xh{n}_xo = xh_hcnt - {cx} + 12'd9;\n"
+        f"wire [11:0] xh{n}_yo = xh_vcnt - {cy} + 12'd9;\n"
+        f"wire [18:0] xh{n}_bits = xh_row(xh{n}_yo[4:0]);\n"
+        f"wire        xhair{n} = {gate} & ~hbl & ~vbl & (xh{n}_xo < 12'd19) & (xh{n}_yo < 12'd19)\n"
+        f"                    & xh{n}_bits[5'd18 - xh{n}_xo[4:0]];\n", b)
+for old, new in (("assign VGA_R    = xhair ? 8'hFF : xhair2 ? 8'h00 : video_gamma.red;",
+                  "wire [7:0] pk_xh_r = xhair ? 8'h30 + r[7:2] : xhair2 ? 8'hBF + r[7:2] : r;\nassign VGA_R    = video_gamma.red;"),
+                 ("assign VGA_G    = (xhair | xhair2) ? 8'hFF : video_gamma.green;",
+                  "wire [7:0] pk_xh_g = (xhair | xhair2) ? 8'h30 + g[7:2] : g;\nassign VGA_G    = video_gamma.green;"),
+                 ("assign VGA_B    = xhair ? 8'hFF : xhair2 ? 8'h00 : video_gamma.blue;",
+                  "wire [7:0] pk_xh_b = xhair ? 8'hBF + b[7:2] : xhair2 ? 8'h30 + b[7:2] : b;\nassign VGA_B    = video_gamma.blue;")):
+    assert b.count(old) == 1, old
+    b = b.replace(old, new)
+t = t[:blk.start()] + b + t[blk.end():]
+
+p.write_text(t)
+print("SYSTEM11.sv: gun aim from pad sticks/d-pads (d-pad accelerates), any face button fires, MAME crosshair on the raw video")

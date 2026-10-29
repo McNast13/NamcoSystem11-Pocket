@@ -389,16 +389,20 @@ module core_top (
     always @(posedge clk1x) if (ee_wr_sh) ee_shadow[ee_wa_sh] <= ee_q;
     always @(posedge clk_74a) ee_shadow_q <= ee_shadow[bridge_addr[11:2]];
 
-    // ---- Core settings (interact.json): DIP1 Test, DIP2 Freeze, held Service button ----
+    // ---- Core settings (interact.json): DIP1 Test, DIP2 Freeze, held Service button, gun aim speed ----
+    reg [1:0] gunspd74 = 2'd0;                           // Point Blank 2 aim speed: 0 Normal, 1 Slow, 2 Fast (status[99:98])
     reg [3:0] settings74 = 4'b0000;                      // [3] = diagnostic screen (no menu entry: S11_FORCE_DIAG shows it)
     always @(posedge clk_74a) if (bridge_wr) begin
         if (bridge_addr == 32'h50000000) settings74[0] <= bridge_wr_data[0];
         if (bridge_addr == 32'h50000004) settings74[1] <= bridge_wr_data[0];
         if (bridge_addr == 32'h50000008) settings74[2] <= bridge_wr_data[0];
         if (bridge_addr == 32'h5000000C) settings74[3] <= bridge_wr_data[0];
+        if (bridge_addr == 32'h50000010) gunspd74 <= bridge_wr_data[1:0];
     end
     wire [3:0] settings;
     synch_3 #(.WIDTH(4)) s_set (settings74, settings, clk1x);
+    wire [1:0] gunspd;
+    synch_3 #(.WIDTH(2)) s_gun (gunspd74, gunspd, clk1x);
     wire diag_vid;
     synch_3 #(.WIDTH(1)) s_diag (settings74[3], diag_vid, clk_vid);
     wire [19:0] joy_svc = {6'b0, settings[2], 13'b0};     // joy[13] = Service
@@ -473,7 +477,7 @@ module core_top (
         .PK_ANALOG_L2(stick(k3_s, j3_s, 1'b0)),  .PK_ANALOG_L3(stick(k4_s, j4_s, 1'b0)),
         .PK_ANALOG_R0(stick(k1_s, j1_s, 1'b1)), .PK_ANALOG_R1(stick(k2_s, j2_s, 1'b1)),
         .PK_ANALOG_R2(stick(k3_s, j3_s, 1'b1)), .PK_ANALOG_R3(stick(k4_s, j4_s, 1'b1)),
-        .PK_STATUS({30'd0, settings[1], settings[0], 96'd0}),
+        .PK_STATUS({28'd0, gunspd, settings[1], settings[0], 96'd0}),
         .PK_VID_CE(vid_ce), .PK_VID_HS(vid_hs), .PK_VID_VS(vid_vs), .PK_VID_HBL(vid_hbl), .PK_VID_VBL(vid_vbl),
         .PK_VID_ILACE(vid_ilace), .PK_VID_R(vid_r), .PK_VID_G(vid_g), .PK_VID_B(vid_b),
         .PK_EE_RD(ee_rd_emu), .PK_EE_ADDR(ee_a), .PK_EE_Q(ee_q), .PK_EE_SAVE_REQ(ee_save_req), .PK_DBG(emu_dbg), .PK_DBG2(emu_dbg2), .PK_DBG3(emu_dbg3)

@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""GP1(01) without the FIFO flush / drawer reset for the light-gun games (Point Blank 2 / Gunbarl).
+
+Point Blank 2 calls PsyQ ResetGraph(3) during play (MAME: PC 0x80149c3c..84: DMA2 CHCR <- 0x401, DPCR |= 0x800,
+GP1(02), GP1(01)). MAME's GPU is instant, so the reset never meets queued work; the FPGA GPU is still drawing,
+and on the coh110 path (gputype1 = 0) GP1(01) flushes the FIFO and resets cpu2vram / vram2cpu / the pixel
+pipeline in the middle of a primitive. Suspected cause of the Point Blank 2 freeze (picture stops, sound runs)
+~10 s into the armour mini-game. Gun games get the gputype1 semantics instead (MAME: packet-framing reset only),
+which Tekken already runs on with a GP1(01) every frame. zn_gun_game is the MRA's light-gun flag.
+"""
+import sys
+from pathlib import Path
+
+work = Path(sys.argv[1]).resolve()
+
+def patch(rel, pairs):
+    p = work / rel
+    t = p.read_text()
+    for old, new in pairs:
+        assert t.count(old) == 1, f"{rel}: {old!r}"
+        t = t.replace(old, new)
+    p.write_text(t)
+
+patch("rtl/gpu.vhd", [
+    ("      gpuType1             : in  std_logic := '0';\n",
+     "      gpuType1             : in  std_logic := '0';\n"
+     "      gp1ClearSoft         : in  std_logic := '0';  -- GP1(01) = framing reset only (gun games, gun_gp1_soft.apply)\n"),
+    ("                        if (gpuType1 = '0') then\n                           fifoIn_reset <= '1';",
+     "                        if (gpuType1 = '0' and gp1ClearSoft = '0') then\n                           fifoIn_reset <= '1';"),
+])
+patch("rtl/psx_top.vhd", [
+    ("      zn_gputype1_force : in std_logic := '0';",
+     "      zn_gun_game     : in std_logic := '0';  -- light-gun game: GP1(01) framing reset only (gun_gp1_soft.apply)\n"
+     "      zn_gputype1_force : in std_logic := '0';"),
+    ("      gpuType1             => s11_gputype1,",
+     "      gp1ClearSoft         => s11_gp1soft,\n      gpuType1             => s11_gputype1,"),
+    ("   signal s11_gputype1           : std_logic;\n",
+     "   signal s11_gputype1           : std_logic;\n   signal s11_gp1soft            : std_logic;\n"),
+    ("   s11_gputype1 <= '1' when",
+     "   s11_gp1soft  <= zn_system11 and zn_gun_game;\n   s11_gputype1 <= '1' when"),
+])
+patch("rtl/psx_mister.vhd", [
+    ("      zn_gputype1_force : in std_logic := '0';",
+     "      zn_gun_game     : in std_logic := '0';\n      zn_gputype1_force : in std_logic := '0';"),
+    ("      zn_gputype1_force => zn_gputype1_force,",
+     "      zn_gun_game     => zn_gun_game,\n      zn_gputype1_force => zn_gputype1_force,"),
+])
+patch("SYSTEM11.sv", [
+    ("   .zn_gputype1_force(zn_platform_r[5]),",
+     "   .zn_gun_game(zn_gun_game),\n   .zn_gputype1_force(zn_platform_r[5]),"),
+])
+print("gpu: GP1(01) is a framing reset only for light-gun games (no FIFO flush / drawer reset mid-primitive)")

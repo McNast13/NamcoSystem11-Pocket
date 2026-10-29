@@ -3,10 +3,10 @@
 Port of [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) (itself derived from
 [PSX_MiSTer](https://github.com/MiSTer-devel/PSX_MiSTer)) to the Analogue Pocket.
 
-**Status:** experimental. Latest release: [v0.1.4](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
+**Status:** experimental. Latest release: [v0.2.1](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
 Tested as working on a real Pocket: Tekken, Tekken 2, Soul Edge, Prime Goal EX, Pocket Racer, Kosodate Quiz My Angel 3, Dancing
-Eyes and Xevious 3D/G. Dunk Mania, Point Blank 2 and Star Sweep have not been tested yet. The design uses about 96% of the FPGA
-(17,832 / 18,480 ALMs): game builds leave out the bring-up diagnostic screen and its debug signals (`S11_NO_DIAG`), which freed
+Eyes, Xevious 3D/G, Point Blank 2 and Gunbarl. Dunk Mania and Star Sweep have not been tested yet. The design uses about 98% of
+the FPGA (18,198 / 18,480 ALMs): game builds leave out the bring-up diagnostic screen and its debug signals (`S11_NO_DIAG`), which freed
 360 ALMs and removes the "Diagnostic screen" entry from the core's settings (from v0.1.3). See [docs/SHELL.md](docs/SHELL.md) for the architecture and the full bring-up log, and
 [docs/BASELINE.md](docs/BASELINE.md) for the measurements.
 
@@ -20,6 +20,11 @@ What the core has so far:
   every frame, so no line shows at the top of the picture on the Pocket's screen (from v0.1.4).
 - Controls from the Pocket, the Dock's controllers and their analog sticks. Pocket Racer steers with left/right on the d-pad (a
   virtual wheel that turns while held and re-centres when let go) or with an analog stick on the Dock.
+- Point Blank 2 and Gunbarl played with a pad (from v0.2.1), one player handheld or one or two players in the Dock (each with
+  their own controller). Each player aims with the left stick or the d-pad and fires with any face button. The d-pad moves
+  slowly at first for fine aim and speeds up when held; the stick is proportional. A MAME-style sight shows where each player
+  is aiming (player 1 blue, player 2 red once player 2 joins), and **Gun aim speed** in the core's settings chooses Normal,
+  Slow or Fast.
 - A game list of 35 sets built from your own MAME romsets, with each game's required files listed for pupdate and Pocket Sync,
   and a [Pocket Sync / pupdate plugin](https://github.com/McNast13/NamcoSystem11-Pocket-Plugin) that installs them from your zips.
 
@@ -28,6 +33,7 @@ Known limitations:
 - To change game, quit the core and open it again (there is no "Load game").
 - Game settings (the EEPROM) are not kept between launches yet.
 - Not every regional version in `_alternatives` has been tried.
+- There is no light-gun support: Point Blank 2 and Gunbarl are aimed with a pad.
 
 ## Installing
 
@@ -63,7 +69,7 @@ romsets (for example MAME 2015) match only where those sets have not changed sin
 | Xevious 3D/G | `xevi3dg`, `xevi3dga`, `xevi3dgj` | Yes |
 | Dancing Eyes | `danceyes`, `danceyesu`, `danceyesj` | Yes |
 | Dunk Mania | `dunkmnia`, `dunkmniajc` | Not yet |
-| Point Blank 2 / Gunbarl | `ptblank2a`, `ptblank2b`, `ptblank2c`, `ptblank2ua`, `gunbarla` | Not yet |
+| Point Blank 2 / Gunbarl | `ptblank2a`, `ptblank2b`, `ptblank2c`, `ptblank2ua`, `gunbarla` | Yes (`ptblank2a`, `gunbarla`) |
 | Star Sweep | `starswep`, `starswepj` | Not yet |
 | Pocket Racer, Prime Goal EX, Kosodate Quiz My Angel 3 | `pocketrc`, `primglex`, `myangel3` | Yes (all three) |
 

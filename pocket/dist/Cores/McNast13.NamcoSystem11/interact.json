@@ -37,6 +37,21 @@
         "defaultval": 0,
         "value": 1,
         "value_off": 0
+      },
+      {
+        "name": "Gun aim speed",
+        "id": 4,
+        "type": "list",
+        "enabled": true,
+        "persist": true,
+        "writeonly": true,
+        "address": "0x50000010",
+        "defaultval": 0,
+        "options": [
+          { "value": 0, "name": "Normal" },
+          { "value": 1, "name": "Slow" },
+          { "value": 2, "name": "Fast" }
+        ]
       }
     ],
     "messages": []

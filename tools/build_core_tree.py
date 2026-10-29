@@ -18,7 +18,7 @@ ARGS = [str(ROOT / "references/openfpga-PlayStation"), str(ROOT / "references/La
 # Same order as the probe runs that measured 18,0xx ALMs / closed clk_2x timing (host-side .apply scripts only).
 APPLY = ["gte_laxer", "ps_gte", "ps_patches", "ps_gpu_recip", "gpu_area_reg", "gpu_rect_timing", "gpu_read_late",
          "cpu_execute_share", "c76_sfr_ram", "c76_vblank_irq", "c352_tag_ram", "no_texfilter",
-         "drop_scaffold", "savestates_reset_only", "drop_scaffold2", "drop_scaffold3", "drop_guns", "eeprom_blank", "s11_bootbits"]
+         "drop_scaffold", "savestates_reset_only", "drop_scaffold2", "drop_scaffold3", "gun_pad_aim", "gun_gp1_soft", "eeprom_blank", "s11_bootbits"]
 
 
 def main():

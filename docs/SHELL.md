@@ -279,3 +279,53 @@ Builds now run locally (`tools/local_build.sh`, docs/LOCAL_BUILD.md; same image 
   fix (`s11_reload`, games 18-21) was dropped; `s11_dlprobe.apply` (download counters, probe15) was written but not built.
 - COH-100 (old GPU) handling checked against MAME: the core's gputype1 is on for every Tekken 1 set and the older Tekken 2 sets
   (platform byte bit 5), off for Tekken 2 VER.D and Soul Edge (COH-110), matching MAME.
+
+## 2026-10-28: Point Blank 2 / Gunbarl aimed from the pad; Point Blank 2 freezes in one mini-game (open)
+- **Pad aiming** (`synth/pocket_probe/variants/gun_pad_aim.apply`, replaces `drop_guns` in `tools/build_core_tree.py`). `drop_guns` had
+  pinned both guns at screen centre and removed the crosshair, so the gun games could not aim at all on the Pocket. The System 11 GUN I/F
+  only presents absolute X/Y counters (MAME `lightgun_r`), so each player's aim is a virtual pointer driven like a trackball: the left
+  stick (proportional, deadzone 16) or the d-pad sets its velocity (~1.03 kHz tick), and it holds position on release. P1 = pad 1 (was
+  the PS/2 mouse upstream), P2 = pad 2 (upstream already did this). Any face button fires (MAME ptblank2ua reads only PLAYER1/2 0x10 and
+  Start; the d-pad bits are IPT_UNUSED). Crosshair always on for gun games, drawn on the raw video the APF scaler takes (`pk_xh_r/g/b`,
+  wired in `pocket/core/emu/pocket_emu.apply`; upstream drew it on the MiSTer gamma chain, which the Pocket does not use); P1 white,
+  P2 green once P2 moves. New interact setting "Gun aim speed" (0x50000010 -> `status[99:98]`): Normal ~0.7 s across the screen on the
+  d-pad, Slow ~1.4 s, Fast ~0.35 s; Y shifts 2 more than X (the virtual screen is 1024 x 256, displayed 4:3).
+- Build `pocket/package-gunaim22` (game recipe, seed 22): **18,137 / 18,480 ALMs (98%, +305 vs v0.1.4)**, 51/66 DSP, clk2x setup
+  +0.385 ns, clk3x (general[2]) hold -0.022..-0.087 ns in all four models. User tested: crosshairs and aim fine on the Pocket and the
+  Dock with 2 players. Not committed.
+- **Point Blank 2 (ptblank2a) freezes**: in the "shoot the armour off the man" mini-game, ~10 s in, 2 of 2 plays. Picture stops, sound
+  continues (the C76 runs; the MIPS or the GPU stopped). Gunbarl: 3 rounds, no freeze. Still unknown: whether those plays were on the
+  aiming build or on v0.1.4 (restored to the card for that test; aim pinned at centre).
+- Ruled out against MAME (ptblank2a rebuilt from the card's packed files, all CRCs good: de-interleave rom_0/rom_3
+  even/odd bytes; `tools/mame/ptblank_trace.lua` = write/read taps on keycus 0x1FA20000, EEPROM 0x1FA30000, gun 0x1F780000/0x1F788000, bank 0x1FA10020, upper 0x1F080000,
+  MDEC 0x1F801820): the C443 KEYCUS only ever sees the three queries zn1_io answers (p1=0x20 with p2=ffdf/ffe0); the 16 MB banked
+  ROM fits data slot 4; gun I/F reads match MAME. Point Blank 2 uses MDEC in attract. `ptblank2.zip` on the user's drive is the
+  parent set only (gnb5/gnb1prg0), not ptblank2a.
+- Leading suspect: a GPU/GTE path that only that stage exercises (variants that change GPU/GTE behaviour: gte_laxer, ps_gte,
+  ps_gpu_recip, gpu_area_reg, gpu_rect_timing, gpu_read_late, no_texfilter, cpu_execute_share), or the full-rate VRAM under load.
+- **Diagnostic screen does not fit any more**: with s11_bootbits the diag build needed 1,859 / 1,848 LABs (18,409 ALMs); without it
+  it is ~18,137 + 360 > 18,480, so that build was stopped. Rule: do the ALM sum before every build; leave the diag screen out.
+- **Next:** (1) ask which core the freezes were on. (2) MAME: reach the armour mini-game and log what it uses that other stages do not
+  (GPU primitive types / GP0 commands via DMA2 lists, GTE ops, MDEC). (3) one targeted game build (no diag), ALM estimate first:
+  ~340 ALMs spare on the aiming build, ~650 on v0.1.4's base. Space trims not yet built: savestates reset-only remainder (~195),
+  bridge-cmd-lean (~50-215), sio0_stub (~50).
+
+## 2026-10-29: Point Blank 2 freeze found and fixed; MAME crosshair; d-pad acceleration (v0.2.1)
+- The freezes were on the aiming build (v0.1.4 cannot reach the stage: aim pinned at centre).
+- **MAME** (`tools/mame/ptblank_gpu_trace.lua`: per-second GP0 histogram from walking the DMA2 lists, GP1, MDEC and gun I/O;
+  played by hand). The armour round = intro ~10 s, play ~20 s, results. During play the game calls PsyQ `ResetGraph(3)`
+  (PC 0x80149c3c..0x80149c84: DMA2 CHCR <- 0x401 (stop), DPCR |= 0x800, GP1(02), GP1(01)) about every 40 frames.
+- **Cause:** Point Blank 2 and Gunbarl are coh110 boards (platform bytes `14 09 01 00`, gputype1 = 0), where GP1(01) flushes the
+  command FIFO and pulses `drawer_reset` (cpu2vram, vram2cpu and the pixel pipeline only; not the poly/rect/line units or the
+  dispatcher). MAME's GPU is instant so the reset never meets queued work; the FPGA GPU is still drawing, the reset lands
+  mid-primitive and the GPU hangs (picture stops, C76 sound runs). The DMA side is fine: a CHCR write with bit 24 clear stops
+  the channel (`channelOn <= 0`).
+- **Fix:** `gun_gp1_soft.apply`: GP1(01) is a framing-only reset for `zn_gun_game` (the gputype1 behaviour Tekken already runs
+  with every frame), plumbed SYSTEM11.sv -> psx_mister -> psx_top -> gpu (`gp1ClearSoft`). Other games unchanged. Build
+  `package-gunsoft22`: 18,151 ALMs; user: "lots better", armour round no longer freezes.
+- **Crosshair:** MAME's sight (`src/emu/crsshair.cpp` `crosshair_raw_top`, drawn 0.06 x 0.08 of the screen) scaled to 19 x 19
+  pixels, made symmetric, blended 75% like MAME: P1 blue (40,40,FF), P2 red (FF,40,40).
+- **D-pad acceleration:** 1/3 speed for the first 256 ticks (~0.25 s) of a hold, then a ramp to full speed at ~0.5 s, both
+  players; the stick stays proportional.
+- Build `package-gunxh22` (game recipe, seed 22): **18,198 / 18,480 ALMs**, clk2x setup +0.907 ns, clk3x fast-model hold
+  -0.047 ns. On the card for testing.
