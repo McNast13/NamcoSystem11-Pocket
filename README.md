@@ -26,13 +26,16 @@ What the core has so far:
   slowly at first for fine aim and speeds up when held; the stick is proportional. A MAME-style sight shows where each player
   is aiming (player 1 blue, player 2 red once player 2 joins), and **Gun aim speed** in the core's settings chooses Normal,
   Slow or Fast.
+- Game settings kept between launches (from v0.2.2): changes made in a game's test menu are saved to the game's EEPROM file
+  (`Saves/namco_system11/.../<game>.sav` on the SD card) when you quit the core, and loaded the next time you open that game.
+- Core settings that take effect (from v0.2.2; earlier versions ignored them): **DIP1 Test** (the game's test menu at
+  start-up), **DIP2 Freeze**, **Service button (held)** and **Gun aim speed**.
 - A game list of 35 sets built from your own MAME romsets, with each game's required files listed for pupdate and Pocket Sync,
   and a [Pocket Sync / pupdate plugin](https://github.com/McNast13/NamcoSystem11-Pocket-Plugin) that installs them from your zips.
 
 Known limitations:
 
 - To change game, quit the core and open it again (there is no "Load game").
-- Game settings (the EEPROM) are not kept between launches yet.
 - Of the versions in `_alternatives`, those of Tekken, Tekken 2 and Point Blank 2 have been tried; the others have not.
 - There is no light-gun support: Point Blank 2 and Gunbarl are aimed with a pad.
 
@@ -145,7 +148,7 @@ Python 3 needed:
 the core's settings, as in the PlayStation core: loading a new game into the running core does not restart these boards cleanly,
 so the core is always started fresh for each game.
 
-Game settings (the EEPROM) start blank at every launch for now, so changes made in the game's test menu are not kept yet.
+Game settings (the EEPROM) are saved per game: quit the core from the Pocket menu after changing them so the save is written.
 
 ## Building
 

@@ -145,8 +145,8 @@ jobs:
             echo "Pocket Racer, Prime Goal EX, Kosodate Quiz My Angel 3, Point Blank 2 and Gunbarl, plus alternative versions of Tekken,"
             echo "Tekken 2 and Point Blank 2."
             echo
-            echo "**Known limitations:** to change game, quit the core and open it again (no Load game); game settings (EEPROM) are"
-            echo "not kept between launches yet; of the versions in _alternatives, only those of Tekken, Tekken 2 and Point Blank 2 have been tried."
+            echo "**Known limitations:** to change game, quit the core and open it again (no Load game);"
+            echo "of the versions in _alternatives, only those of Tekken, Tekken 2 and Point Blank 2 have been tried."
             echo
             echo "Build: fitter seed ${{ steps.pick.outputs.seed }}, worst-case timing slack ${{ steps.pick.outputs.slack }} ns."
             echo
