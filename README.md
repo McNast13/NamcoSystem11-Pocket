@@ -3,11 +3,11 @@
 Port of [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) (itself derived from
 [PSX_MiSTer](https://github.com/MiSTer-devel/PSX_MiSTer)) to the Analogue Pocket.
 
-**Status:** beta. Latest release: [v0.2.1](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
+**Status:** beta. Latest release: [v0.2.2](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
 Every game has been tested as working on a real Pocket: Tekken, Tekken 2, Soul Edge, Prime Goal EX, Pocket Racer, Kosodate Quiz
 My Angel 3, Dancing Eyes, Xevious 3D/G, Dunk Mania, Star Sweep, Point Blank 2 and Gunbarl, plus alternative versions of Tekken,
-Tekken 2 and Point Blank 2. The design uses about 98% of
-the FPGA (18,198 / 18,480 ALMs): game builds leave out the bring-up diagnostic screen and its debug signals (`S11_NO_DIAG`), which freed
+Tekken 2 and Point Blank 2. The design uses about 99% of
+the FPGA (18,221 / 18,480 ALMs): game builds leave out the bring-up diagnostic screen and its debug signals (`S11_NO_DIAG`), which freed
 360 ALMs and removes the "Diagnostic screen" entry from the core's settings (from v0.1.3). See [docs/SHELL.md](docs/SHELL.md) for the architecture and the full bring-up log, and
 [docs/BASELINE.md](docs/BASELINE.md) for the measurements.
 
@@ -27,9 +27,11 @@ What the core has so far:
   is aiming (player 1 blue, player 2 red once player 2 joins), and **Gun aim speed** in the core's settings chooses Normal,
   Slow or Fast.
 - Game settings kept between launches (from v0.2.2): changes made in a game's test menu are saved to the game's EEPROM file
-  (`Saves/namco_system11/.../<game>.sav` on the SD card) when you quit the core, and loaded the next time you open that game.
+  (`Saves/namco_system11/McNast13.NamcoSystem11/<game>.sav` on the SD card) when you quit the core, and loaded the next time
+  you open that game. Each game has its own save.
 - Core settings that take effect (from v0.2.2; earlier versions ignored them): **DIP1 Test** (the game's test menu at
-  start-up), **DIP2 Freeze**, **Service button (held)** and **Gun aim speed**.
+  start-up), **DIP2 Freeze** (the board's freeze switch; most games, Tekken 2 among them, ignore it), **Service button
+  (held)** (the cabinet's service button: switching it on adds a service credit) and **Gun aim speed**.
 - A game list of 35 sets built from your own MAME romsets, with each game's required files listed for pupdate and Pocket Sync,
   and a [Pocket Sync / pupdate plugin](https://github.com/McNast13/NamcoSystem11-Pocket-Plugin) that installs them from your zips.
 
@@ -148,7 +150,8 @@ Python 3 needed:
 the core's settings, as in the PlayStation core: loading a new game into the running core does not restart these boards cleanly,
 so the core is always started fresh for each game.
 
-Game settings (the EEPROM) are saved per game: quit the core from the Pocket menu after changing them so the save is written.
+**Game settings:** each game's settings (its EEPROM) are saved to its own `.sav` when you quit the core. After changing a
+setting, leave the test menu and wait a couple of seconds before quitting, so the game has finished writing it.
 
 ## Building
 
@@ -156,7 +159,7 @@ To build and package, use `tools/local_build.sh` (local Quartus in Docker, see [
 Actions (`pocket-shell.yml` with `project=s11full`). `tools/build_core_tree.py` assembles the source tree, Quartus compiles
 `pocket/project/s11full`, `tools/package_pocket.py` makes the SD-card tree, and
 `tools/make_games.py` turns your own MAME ROM zips into the game files and the game list (`tools/rom_packer.py` packs one MRA). No ROMs are included or distributed. Releases are built by `release.yml` (push a `v*` tag, or run it by hand from the Actions tab with a tag name): it builds the game
-core at the fitter seed of the build tested on a Pocket (seed 22 since v0.1.1), builds without the diagnostic screen (`S11_NO_DIAG`), stamps the version into `core.json` and publishes
+core at the fitter seed of the build tested on a Pocket (seed 44 since v0.2.2, seed 22 from v0.1.1 to v0.2.1), builds without the diagnostic screen (`S11_NO_DIAG`), stamps the version into `core.json` and publishes
 the release with the SD-card zip. Another seed is the same design but an untested fit, so a new seed is only released after it has
 been tested on a Pocket.
 
