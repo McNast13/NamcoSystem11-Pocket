@@ -392,12 +392,15 @@ module core_top (
     // ---- Core settings (interact.json): DIP1 Test, DIP2 Freeze, held Service button, gun aim speed ----
     reg [1:0] gunspd74 = 2'd0;                           // Point Blank 2 aim speed: 0 Normal, 1 Slow, 2 Fast (status[99:98])
     reg [3:0] settings74 = 4'b0000;                      // [3] = diagnostic screen (no menu entry: S11_FORCE_DIAG shows it)
+    // With bridge_endian_little = 1 the host's setting values arrive byte-swapped (1 -> 32'h01000000), so take the value
+    // from every byte lane, as the PlayStation core does (values are below 256)
+    wire [7:0] set_val = bridge_wr_data[7:0] | bridge_wr_data[15:8] | bridge_wr_data[23:16] | bridge_wr_data[31:24];
     always @(posedge clk_74a) if (bridge_wr) begin
-        if (bridge_addr == 32'h50000000) settings74[0] <= bridge_wr_data[0];
-        if (bridge_addr == 32'h50000004) settings74[1] <= bridge_wr_data[0];
-        if (bridge_addr == 32'h50000008) settings74[2] <= bridge_wr_data[0];
-        if (bridge_addr == 32'h5000000C) settings74[3] <= bridge_wr_data[0];
-        if (bridge_addr == 32'h50000010) gunspd74 <= bridge_wr_data[1:0];
+        if (bridge_addr == 32'h50000000) settings74[0] <= set_val[0];
+        if (bridge_addr == 32'h50000004) settings74[1] <= set_val[0];
+        if (bridge_addr == 32'h50000008) settings74[2] <= set_val[0];
+        if (bridge_addr == 32'h5000000C) settings74[3] <= set_val[0];
+        if (bridge_addr == 32'h50000010) gunspd74 <= set_val[1:0];
     end
     wire [3:0] settings;
     synch_3 #(.WIDTH(4)) s_set (settings74, settings, clk1x);
