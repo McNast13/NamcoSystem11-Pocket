@@ -263,10 +263,18 @@ module core_top (
     reg  [31:0] datatable_data = 0;
     wire [31:0] datatable_q;
     reg         prev_dataslot_update = 0;
+    reg         prev_allcomplete = 0;
+    // The host reads a nonvolatile slot back to SD using the size in the data table. With no .sav yet (first launch) that size
+    // is 0 and nothing would ever be saved, so once loading is done set slot 9 (index 9 in data.json) to the 4 KB EEPROM image.
     always @(posedge clk_74a) begin
         prev_dataslot_update <= dataslot_update;
+        prev_allcomplete <= dataslot_allcomplete;
         datatable_wren <= 0;
-        if (dataslot_update && ~prev_dataslot_update) begin
+        if (dataslot_allcomplete && ~prev_allcomplete) begin
+            datatable_addr <= 10'd9 * 10'h2 + 10'h1;
+            datatable_data <= 32'h1000;
+            datatable_wren <= 1;
+        end else if (dataslot_update && ~prev_dataslot_update) begin
             datatable_addr <= dataslot_update_id[9:0] * 10'h2 + 10'h1;
             datatable_data <= dataslot_update_size;
             datatable_wren <= 1;
