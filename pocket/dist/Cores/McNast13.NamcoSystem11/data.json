@@ -11,7 +11,7 @@
       { "name": "C76 program",    "id": 6, "required": true,  "parameters": "0x08", "address": "0x06000000", "size_maximum": "0x40000" },
       { "name": "Wave ROM",       "id": 7, "required": true,  "parameters": "0x08", "address": "0x07000000", "size_maximum": "0x400000" },
       { "name": "C76 BIOS",       "id": 8, "required": true,  "parameters": "0x08", "filename": "c76.bin", "md5": "8ca155e5ad03571e0930d8d361749b03", "address": "0x08000000", "size_maximum": "0x4000" },
-      { "name": "EEPROM",         "id": 9, "required": false, "parameters": "0x24", "nonvolatile": true, "extensions": ["sav"], "address": "0x09000000", "size_maximum": "0x1000" }
+      { "name": "EEPROM",         "id": 9, "required": false, "parameters": "0x84", "nonvolatile": true, "extensions": ["sav"], "address": "0x09000000", "size_maximum": "0x1000" }
     ]
   }
 }
