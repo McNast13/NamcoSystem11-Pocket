@@ -17,5 +17,22 @@ p = out / "rtl/zn1_io.vhd"
 t = p.read_text()
 old = 'init_file           => "eeprom_ff.mif",'
 assert t.count(old) == 1, t.count(old)
-p.write_text(t.replace(old, 'init_file           => "../build/core_tree/rtl/eeprom_ff.mif",   -- eeprom_blank.apply'))
-print("EEPROM BRAM inits to all-FF")
+t = t.replace(old, 'init_file           => "../build/core_tree/rtl/eeprom_ff.mif",   -- eeprom_blank.apply')
+# A game write wins over the save-back read port: upstream dropped any MIPS EEPROM write that landed while the port was read
+# (core_top copies the EEPROM out through it after every save request). The read that cycle returns the written word's
+# neighbour, but the write re-arms the save request, so the copy is redone 1.5 s later.
+old = """   ee_ram_addr    <= ee_dl_addr when ee_dl_wr = '1'
+                     else ee_up_addr when ee_up_rd = '1'
+                     else eeprom_addr_s;
+   ee_ram_wren    <= '1'    when ee_dl_wr = '1'
+                     else '0' when ee_up_rd = '1'
+                     else eeprom_wr;"""
+assert t.count(old) == 1, t.count(old)
+t = t.replace(old, """   ee_ram_addr    <= ee_dl_addr when ee_dl_wr = '1'
+                     else eeprom_addr_s when eeprom_wr = '1'
+                     else ee_up_addr when ee_up_rd = '1'
+                     else eeprom_addr_s;
+   ee_ram_wren    <= '1'    when ee_dl_wr = '1'
+                     else eeprom_wr;   -- eeprom_blank.apply: game writes are never dropped""")
+p.write_text(t)
+print("EEPROM BRAM inits to all-FF; game writes beat the save-back read")

@@ -240,12 +240,17 @@ module core_top (
     wire        reset_n;
     wire [31:0] cmd_bridge_rd_data;
     assign bridge_endian_little = 1'b1;     // data-slot words arrive little-endian: byte 0 of the file = bits [7:0]
+    // The source is chosen when the host asks (bridge_rd), not from the live address: the host moves bridge_addr on before it
+    // collects the data, so a mux on the live address handed back the word 3 ahead and every .sav came out shifted by 12 bytes
+    reg  [1:0]  rd_src = 2'd0;                                  // 0 none, 1 command handler, 2 EEPROM shadow
+    always @(posedge clk_74a) if (bridge_rd)
+        rd_src <= (bridge_addr[31:24] == 8'hF8) ? 2'd1 : (bridge_addr[31:24] == 8'h09) ? 2'd2 : 2'd0;
     reg  [31:0] bridge_rd_mux;
     always @(*) begin
-        casex (bridge_addr)
-            32'hF8xxxxxx: bridge_rd_mux = cmd_bridge_rd_data;
-            32'h09xxxxxx: bridge_rd_mux = ee_shadow_q;          // EEPROM save-back (data slot 9)
-            default:      bridge_rd_mux = 32'h0;
+        case (rd_src)
+            2'd1:    bridge_rd_mux = cmd_bridge_rd_data;
+            2'd2:    bridge_rd_mux = ee_shadow_q;               // EEPROM save-back (data slot 9)
+            default: bridge_rd_mux = 32'h0;
         endcase
     end
     assign bridge_rd_data = bridge_rd_mux;
@@ -395,7 +400,7 @@ module core_top (
         end else ee_rd <= 1'b0;
     end
     always @(posedge clk1x) if (ee_wr_sh) ee_shadow[ee_wa_sh] <= ee_q;
-    always @(posedge clk_74a) ee_shadow_q <= ee_shadow[bridge_addr[11:2]];
+    always @(posedge clk_74a) if (bridge_rd) ee_shadow_q <= ee_shadow[bridge_addr[11:2]];   // held until the next read
 
     // ---- Core settings (interact.json): DIP1 Test, DIP2 Freeze, held Service button, gun aim speed ----
     reg [1:0] gunspd74 = 2'd0;                           // Point Blank 2 aim speed: 0 Normal, 1 Slow, 2 Fast (status[99:98])
