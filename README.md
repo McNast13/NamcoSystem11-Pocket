@@ -29,9 +29,8 @@ What the core has so far:
 - Game settings kept between launches (from v0.2.2): changes made in a game's test menu are saved to the game's EEPROM file
   (`Saves/namco_system11/McNast13.NamcoSystem11/<game>.sav` on the SD card) when you quit the core, and loaded the next time
   you open that game. Each game has its own save.
-- Core settings that take effect (from v0.2.2; earlier versions ignored them): **DIP1 Test** (the game's test menu at
-  start-up), **DIP2 Freeze** (the board's freeze switch; most games, Tekken 2 among them, ignore it), **Service button
-  (held)** (the cabinet's service button: switching it on adds a service credit) and **Gun aim speed**.
+- Core settings that take effect (from v0.2.2; earlier versions ignored them): **DIP1 Test**, **DIP2 Freeze**, **Service
+  button (held)** and **Gun aim speed**. See [Core settings](#core-settings).
 - A game list of 35 sets built from your own MAME romsets, with each game's required files listed for pupdate and Pocket Sync,
   and a [Pocket Sync / pupdate plugin](https://github.com/McNast13/NamcoSystem11-Pocket-Plugin) that installs them from your zips.
 
@@ -152,6 +151,18 @@ so the core is always started fresh for each game.
 
 **Game settings:** each game's settings (its EEPROM) are saved to its own `.sav` when you quit the core. After changing a
 setting, leave the test menu and wait a couple of seconds before quitting, so the game has finished writing it.
+
+### Core settings
+
+In the Pocket menu, under the core's settings. Up to v0.2.1 the core read these settings with their bytes in the wrong order, so
+none of them took effect; from v0.2.2 they all do.
+
+| Setting | What it does |
+|---|---|
+| **DIP1 Test** | The board's test switch. On: the game starts in its test menu, where its settings (difficulty, rounds, coinage and so on) are changed. Turn it off again to play normally. |
+| **DIP2 Freeze** | The board's freeze switch, passed to the game. Most games, Tekken 2 among them, ignore it. |
+| **Service button (held)** | The cabinet's service button. Switching it on adds a service credit (a free credit); switch it off and on again for another. |
+| **Gun aim speed** | Point Blank 2 and Gunbarl: how fast the sight moves with the d-pad or stick (Normal, Slow, Fast). |
 
 ## Building
 
