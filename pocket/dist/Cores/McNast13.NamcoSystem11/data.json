@@ -2,7 +2,7 @@
   "data": {
     "magic": "APF_VER_1",
     "data_slots": [
-      { "name": "Game",           "id": 0, "required": true,  "parameters": "0x213", "extensions": ["json"] },
+      { "name": "Game",           "id": 0, "required": true,  "parameters": "0x12", "extensions": ["json"] },
       { "name": "Program",        "id": 1, "required": true,  "parameters": "0x08", "address": "0x00000000", "size_maximum": "0x400000" },
       { "name": "Config",         "id": 2, "required": true,  "parameters": "0x08", "address": "0x01000000", "size_maximum": "0x10" },
       { "name": "Fixed ROM",      "id": 3, "required": false, "parameters": "0x08", "address": "0x02000000", "size_maximum": "0x280000" },
