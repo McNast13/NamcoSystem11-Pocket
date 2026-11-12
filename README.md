@@ -3,7 +3,7 @@
 Port of [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer) (itself derived from
 [PSX_MiSTer](https://github.com/MiSTer-devel/PSX_MiSTer)) to the Analogue Pocket.
 
-**Status:** beta. Latest release: [v0.2.2](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
+**Status:** beta. Latest release: [v0.3.0](https://github.com/McNast13/NamcoSystem11-Pocket/releases/latest).
 Every game has been tested as working on a real Pocket: Tekken, Tekken 2, Soul Edge, Prime Goal EX, Pocket Racer, Kosodate Quiz
 My Angel 3, Dancing Eyes, Xevious 3D/G, Dunk Mania, Star Sweep, Point Blank 2 and Gunbarl, plus alternative versions of Tekken,
 Tekken 2 and Point Blank 2. The design uses about 99% of
@@ -19,7 +19,8 @@ What the core has so far:
 - The C76 sound CPU with its BIOS, interrupted on vertical blank as on the board.
 - Pictures sent to the Pocket's scaler as the PlayStation core 0.5.6 does: no extra lead line, and an even number of lines in
   every frame, so no line shows at the top of the picture on the Pocket's screen (from v0.1.4).
-- Controls from the Pocket, the Dock's controllers and their analog sticks. Pocket Racer steers with left/right on the d-pad (a
+- Controls from the Pocket, the Dock's controllers and their analog sticks. The left stick also works as the d-pad
+  (pushed past halfway, players 1 and 2, from v0.3.0), so the fighting games can be played with the stick. Pocket Racer steers with left/right on the d-pad (a
   virtual wheel that turns while held and re-centres when let go) or with an analog stick on the Dock.
 - Point Blank 2 and Gunbarl played with a pad (from v0.2.1), one player handheld or one or two players in the Dock (each with
   their own controller). Each player aims with the left stick or the d-pad and fires with any face button. The d-pad moves
@@ -209,3 +210,5 @@ See [docs/PLAN.md](docs/PLAN.md). Licensed GPL (upstream sources are GPL-2.0/3.0
 
 This core is free and always will be. If you enjoy it and want to help with development costs, you can leave a tip on
 [Ko-fi](https://ko-fi.com/mcnast13). Bug reports and feedback are just as welcome.
+
+[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/mcnast13)

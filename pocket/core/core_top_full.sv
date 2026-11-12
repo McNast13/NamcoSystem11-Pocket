@@ -371,6 +371,11 @@ module core_top (
     function [15:0] stick(input [31:0] k, input [31:0] j, input hi);
         stick = (k[31:28] == 4'h3 || (k[31:28] == 4'h2 && j != 32'h0 && j != 32'hFFFFFFFF)) ? map_stick(hi ? j[31:16] : j[15:0]) : 16'h0;
     endfunction
+    // Left stick past half deflection also presses the d-pad (Tekken etc. read only digital): signed {Y, X} -> joy[3:0] up/down/left/right.
+    // >= 64 is ~s[7] & s[6], < -64 is s[7] & ~s[6]. The gun aim's 16 dead zone is smaller, so there the stick still wins over the d-pad.
+    function [19:0] stick_dpad(input [15:0] s);
+        stick_dpad = {16'b0, s[15] & ~s[14], ~s[15] & s[14], s[7] & ~s[6], ~s[7] & s[6]};
+    endfunction
 
     // ---- EEPROM save-back: a shadow copy readable from the bridge ----
     // zn1_io's EEPROM RAM has one port that the MIPS also uses, so the contents are copied out (1024 words, ~4k clk1x) after
@@ -488,7 +493,7 @@ module core_top (
         .PK_CLK1X(clk1x), .PK_CLK2X(clk2x), .PK_CLK3X(clk3x), .PK_CLKVID(clk_vid), .PK_LOCKED(pll_locked),
         .PK_IOCTL_DL(ioctl_dl), .PK_IOCTL_WR(ioctl_wr), .PK_IOCTL_INDEX(ioctl_index), .PK_IOCTL_ADDR(ioctl_addr),
         .PK_IOCTL_DOUT(ioctl_dout_emu), .PK_IOCTL_WAIT(ioctl_wait),
-        .PK_JOY0(map_joy(k1_s) | joy_svc), .PK_JOY1(map_joy(k2_s)), .PK_JOY2(map_joy(k3_s)), .PK_JOY3(map_joy(k4_s)),
+        .PK_JOY0(map_joy(k1_s) | stick_dpad(stick(k1_s, j1_s, 1'b0)) | joy_svc), .PK_JOY1(map_joy(k2_s) | stick_dpad(stick(k2_s, j2_s, 1'b0))), .PK_JOY2(map_joy(k3_s)), .PK_JOY3(map_joy(k4_s)),
         .PK_ANALOG_L0(stick(k1_s, j1_s, 1'b0)),  .PK_ANALOG_L1(stick(k2_s, j2_s, 1'b0)),
         .PK_ANALOG_L2(stick(k3_s, j3_s, 1'b0)),  .PK_ANALOG_L3(stick(k4_s, j4_s, 1'b0)),
         .PK_ANALOG_R0(stick(k1_s, j1_s, 1'b1)), .PK_ANALOG_R1(stick(k2_s, j2_s, 1'b1)),

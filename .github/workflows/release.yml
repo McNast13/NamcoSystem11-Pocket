@@ -148,6 +148,8 @@ jobs:
             echo "**Known limitations:** to change game, quit the core and open it again (no Load game);"
             echo "of the versions in _alternatives, only those of Tekken, Tekken 2 and Point Blank 2 have been tried."
             echo
+            echo '[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/mcnast13)'
+            echo
             echo "Build: fitter seed ${{ steps.pick.outputs.seed }}, worst-case timing slack ${{ steps.pick.outputs.slack }} ns."
             echo
             echo '<details><summary>Fit summary</summary>'
