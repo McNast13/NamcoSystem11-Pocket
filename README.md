@@ -204,3 +204,8 @@ See [docs/PLAN.md](docs/PLAN.md). Licensed GPL (upstream sources are GPL-2.0/3.0
 - **XelaNotPu** - [SYSTEM11_MiSTer](https://github.com/XelaNotPu/SYSTEM11_MiSTer), the Namco System 11 core being ported.
 - **MiSTer-devel / Robert Peip (FPGAzumSpass)** - [PSX_MiSTer](https://github.com/MiSTer-devel/PSX_MiSTer), the base PlayStation core.
 - **Laxer3a** - [PS-GTE](https://github.com/Laxer3a/PS-GTE), the compact GTE used for area reduction.
+
+## Support
+
+This core is free and always will be. If you enjoy it and want to help with development costs, you can leave a tip on
+[Ko-fi](https://ko-fi.com/mcnast13). Bug reports and feedback are just as welcome.
